@@ -39,6 +39,13 @@ export interface BalanceModalStore {
   priceTickStore: StoreState<number>
   usePriceTick(): number
   bumpPriceTick(): void
+  /**
+   * 任务完成 tick：头部按钮监听到会话任务结束（会话快照 running true→false）
+   * 后递增，footer / 头部按钮订阅后各自立即刷新（footer 余额强制绕过 60s 缓存）。
+   */
+  taskTickStore: StoreState<number>
+  useTaskTick(): number
+  bumpTaskTick(): void
 }
 
 function useStoreValue<T>(target: StoreState<T>): T | null {
@@ -53,9 +60,11 @@ export function makeBalanceModalStore(): BalanceModalStore {
   const autoStore = createStore<number>()
   const tickStore = createStore<number>()
   const priceTickStore = createStore<number>()
+  const taskTickStore = createStore<number>()
   autoStore.value = 0
   tickStore.value = 0
   priceTickStore.value = 0
+  taskTickStore.value = 0
   const useOpen = (): boolean => {
     const [v, setV] = useState<boolean>(!!store.value)
     useEffect(() => store.subscribe(() => setV(!!store.value)), [])
@@ -81,5 +90,13 @@ export function makeBalanceModalStore(): BalanceModalStore {
     priceTickStore.value = (priceTickStore.value ?? 0) + 1
     priceTickStore.emit()
   }
-  return { store, useOpen, autoStore, useAutoSeconds, tickStore, useTick, bumpTick, priceTickStore, usePriceTick, bumpPriceTick }
+  const useTaskTick = (): number => {
+    const v = useStoreValue<number>(taskTickStore)
+    return v ?? 0
+  }
+  const bumpTaskTick = (): void => {
+    taskTickStore.value = (taskTickStore.value ?? 0) + 1
+    taskTickStore.emit()
+  }
+  return { store, useOpen, autoStore, useAutoSeconds, tickStore, useTick, bumpTick, priceTickStore, usePriceTick, bumpPriceTick, taskTickStore, useTaskTick, bumpTaskTick }
 }

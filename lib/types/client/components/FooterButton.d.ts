@@ -3,8 +3,11 @@
  * 常驻的「余额」按钮（footer.action 区），点击打开统一弹框
  * （余额 / 费用 / 价格设置 三个 tab）。
  *
- * 右侧文案横排显示：「余额(xxCNY) 高峰时段/空闲时段 半价」——金额括号紧跟
- * 「余额」，时段文案（高峰红色/空闲绿色）随当前时间动态变化。
+ * 右侧文案横排显示：「余额 ¥110.00 · 时段小圆点」——余额靠右对齐（货币符号前缀、
+ * 数字绿色）；时段文案收敛为小圆点（高峰红 / 空闲绿），悬停使用宿主的
+ * Tooltip（@deepseek-ai/dsh-client-ui-primitives，运行时从宿主 seed 表解析）
+ * 气泡提示完整信息「当前为高峰时段 全价计费」/「当前为空闲时段 半价计费」，
+ * 其中价词着色（高峰「全价」红 / 空闲「半价」绿，与圆点同色）。
  * 时段判定与宿主一致（时区偏移 + 高峰窗口 + 周六日半价，按当前时间），
  * 每 60 秒刷新；弹框内保存价格成功或关闭弹框后立即刷新。
  */
@@ -24,6 +27,8 @@ export interface FooterButtonProps {
     useOpen(): boolean;
     /** 价格配置保存 tick（弹框保存成功后变化，立即刷新时段文案）。 */
     usePriceTick?(): number;
+    /** 任务完成 tick（插件共享 store）：头部按钮广播会话任务结束后递增，此处强制刷新余额。 */
+    useTaskTick?(): number;
 }
-export declare function FooterButton({ onOpen, reportSession, wide, useSessions, run, useOpen, usePriceTick }: FooterButtonProps): import("react").JSX.Element;
+export declare function FooterButton({ onOpen, reportSession, wide, useSessions, run, useOpen, usePriceTick, useTaskTick }: FooterButtonProps): import("react").JSX.Element;
 //# sourceMappingURL=FooterButton.d.ts.map

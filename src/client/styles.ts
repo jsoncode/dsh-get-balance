@@ -34,10 +34,32 @@ export const css = [
   // 图标：28px 钱包双色 PNG（自带配色，object-fit:contain 保持比例居中；
   // pointer-events:none 让右键/拖拽落到下层按钮上，不出现「图片另存为」菜单）
   '.dshb-footer-logo{height:28px;width:28px;flex:none;display:block;object-fit:contain;pointer-events:none}',
-  '.dshb-footer-label{display:flex;flex-direction:row;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden}',
+  '.dshb-footer-label{flex:1 1 auto;display:flex;flex-direction:row;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden}',
   '.dshb-footer-word{font-size:14px;font-weight:500;color:var(--dsw-alias-label-primary,#222)}',
-  '.dshb-footer-balance{font-size:12px;font-weight:500;color:var(--dsw-alias-label-secondary,#666);white-space:nowrap;flex:none}',
-  '.dshb-footer-label .dshb-btn-badge{margin-left:0;font-size:11px;line-height:1.2}',
+  // 「余额」+ 时段小圆点整体作为 Tooltip 锚点：内联 flex 保持二字与圆点同排同距
+  '.dshb-footer-word-group{display:inline-flex;align-items:center;gap:6px;min-width:0}',
+  // 余额靠右对齐：margin-left:auto 推到按钮右缘；货币符号与金额整体绿色，金额加粗
+  '.dshb-footer-balance{display:inline-flex;align-items:baseline;gap:2px;margin-left:auto;font-size:12px;font-weight:500;color:#16a34a;white-space:nowrap;flex:none;font-variant-numeric:tabular-nums}',
+  '.dshb-footer-cur{flex:none}',
+  '.dshb-footer-balance-num{font-weight:700}',
+  // 时段小圆点：高峰红 / 空闲绿，悬停气泡提示完整信息（宿主 Tooltip）
+  '.dshb-period-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none}',
+  '.dshb-period-dot-peak{background:var(--dsw-alias-state-error-primary,#d33)}',
+  '.dshb-period-dot-off{background:#16a34a}',
+  // 气泡内价词着色（宿主 Tooltip 深色底板白字之上覆盖）：高峰「全价」红 / 空闲「半价」绿
+  '.dshb-tip{white-space:nowrap}',
+  '.dshb-tip b{font-weight:600}',
+  '.dshb-tip .dshb-tip-full{color:var(--dsw-alias-state-error-primary,#d33)}',
+  '.dshb-tip .dshb-tip-half{color:#16a34a}',
+  // 数字「上下轮播」（odometer）：每位数字一列，列内 0-9 纵向条带（3 份支持环绕），
+  // 值变化沿最短路径滚动；非数字字符（小数点 / K/M 后缀）静态列
+  '.dshb-roller{display:inline-block;white-space:nowrap;line-height:1em;font-variant-numeric:tabular-nums}',
+  '.dshb-roll-col{display:inline-block;height:1em;overflow:hidden;vertical-align:top}',
+  '.dshb-roll-strip{display:block;transition:transform .35s cubic-bezier(.25,.8,.35,1);will-change:transform}',
+  '.dshb-roll-col-static .dshb-roll-strip{transition:none}',
+  '.dshb-roll-cell{display:block;height:1em;line-height:1em;text-align:center}',
+  '.dshb-roll-char{display:inline-block;height:1em;line-height:1em;vertical-align:top}',
+  '@media (prefers-reduced-motion: reduce){.dshb-roll-strip{transition:none}}',
   // 宿主 sidebar.footer.action 列表容器：改为纵向堆叠，多个按钮各占一行、按 order 升序
   'div:has(> [data-slot="sidebar.footer.action"]){flex-direction:column}',
   // 弹框
@@ -150,7 +172,6 @@ export const css = [
   '.dshb-price-period{white-space:nowrap;font-size:12px;color:var(--dsw-alias-label-secondary,#666);width:64px}',
   '.dshb-period-peak{color:var(--dsw-alias-state-error-primary,#d33);font-weight:500}',
   '.dshb-period-off{color:#16a34a;font-weight:500}',
-  '.dshb-btn-badge{margin-left:4px;white-space:nowrap;font-size:11px}',
   '.dshb-price-cell .dshb-num{width:100%;box-sizing:border-box;text-align:center;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}',
 ].join('\n')
 

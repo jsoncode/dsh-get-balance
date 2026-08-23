@@ -72,17 +72,23 @@ shows a live "Session ≈xx CNY". UI copy is bilingual
 ### Session-header live button
 
 - Registered on `conversation.session.header.utilities`, showing
-  **Session xxM | ¥≈xx** (both green) — the current session's total
-  tokens (compact K/M/B/T/P format) and its estimated cost.
+  **Session xxM | ≈¥xx** (both green, digits roll vertically odometer-style) —
+  the current session's total tokens (compact K/M/B/T/P format) and its
+  estimated cost.
 - **Clicking the button refreshes once**; auto-refreshes at the configured interval;
-  refreshes on session switch.
+  refreshes on session switch; and refreshes the moment a turn/task finishes
+  (the host session snapshot's `running` flag drops back to false) — the same
+  completion signal also force-refreshes the footer balance (bypassing its 60s cache).
 
 ### Entry button (sidebar footer)
 
-- `sidebar.footer.action` **Balance** button with horizontal right-side text:
-  "余额(110.00 CNY) 高峰时段" — the amount in parentheses right after the label,
-  then the period text. It shows **高峰时段** (red) or **空闲时段 半价** (green)
-  depending on the current time; the amount comes from the balance API.
+- `sidebar.footer.action` **Balance** button: the label and a period dot on the
+  left, the amount right-aligned ("余额 ¥110.00") — currency symbol prefix, digits
+  in green and rolling vertically odometer-style on change. The period is a
+  small dot (**red** for 高峰时段 / **green** for
+  空闲时段 半价) whose hover tooltip shows the full info
+  当前为高峰时段 全价计费 / 当前为空闲时段 半价计费 (全价 in red /
+  半价 in green); the amount comes from the balance API.
 
 ### Auto refresh
 

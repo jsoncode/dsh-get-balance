@@ -3,14 +3,19 @@
  * 常驻的「余额」按钮（footer.action 区），点击打开统一弹框
  * （余额 / 费用 / 价格设置 三个 tab）。
  *
- * 右侧文案横排显示：「余额(xxCNY) 高峰时段/空闲时段 半价」——金额括号紧跟
- * 「余额」，时段文案（高峰红色/空闲绿色）随当前时间动态变化。
+ * 右侧文案横排显示：「余额 ¥110.00 · 时段小圆点」——余额靠右对齐（货币符号前缀、
+ * 数字绿色）；时段文案收敛为小圆点（高峰红 / 空闲绿），悬停使用宿主的
+ * Tooltip（@deepseek-ai/dsh-client-ui-primitives，运行时从宿主 seed 表解析）
+ * 气泡提示完整信息「当前为高峰时段 全价计费」/「当前为空闲时段 半价计费」，
+ * 其中价词着色（高峰「全价」红 / 空闲「半价」绿，与圆点同色）。
  * 时段判定与宿主一致（时区偏移 + 高峰窗口 + 周六日半价，按当前时间），
  * 每 60 秒刷新；弹框内保存价格成功或关闭弹框后立即刷新。
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import { t } from '../i18n.ts'
+import { NumberRoller } from './NumberRoller.tsx'
 import { BALANCE_LOGO_PNG } from '../logo.ts'
 import type { RunFn } from '../rpc.ts'
 
@@ -70,6 +75,52 @@ function isPeakNow(config: PriceConfigView, nowMs: number): boolean {
   return false
 }
 
+/** 常见货币代码 → 符号（余额前缀展示）；未收录的代码回退为代码本身（无代码时为空）。 */
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  CNY: '¥',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+  HKD: 'HK$',
+  KRW: '₩',
+  INR: '₹',
+  RUB: '₽',
+  AUD: 'A$',
+  CAD: 'C$',
+  SGD: 'S$',
+  CHF: 'Fr.',
+  TWD: 'NT$',
+}
+
+function currencySymbol(code: string): string {
+  const c = (code || '').trim().toUpperCase()
+  return c !== '' ? (CURRENCY_SYMBOLS[c] ?? c) : ''
+}
+
+/** 时段气泡纯文本（aria-label / 窄栏按钮 title 用）：{price} 占位替换为价词文本。 */
+function tipPlain(peak: boolean): string {
+  const word = peak ? t('tipFullPrice') : t('tipHalfPrice')
+  return t(peak ? 'tipPeak' : 'tipOffPeak').split('{price}').join(word)
+}
+
+/**
+ * 时段气泡富文本（宿主 Tooltip 渲染）：{price} 处插入彩色价词
+ * （高峰「全价」红 / 空闲「半价」绿，与圆点同色）。宿主 Tooltip 的 label
+ * 类型仅声明为 string，但其运行时直接渲染 ReactNode，这里以函数形式 +
+ * 类型收窄注入彩色片段（宿主运行时行为不变，无需改宿主）。
+ */
+function tipRich(peak: boolean): ReactNode {
+  const [before, after] = t(peak ? 'tipPeak' : 'tipOffPeak').split('{price}')
+  return (
+    <span className="dshb-tip">
+      {before}
+      <b className={peak ? 'dshb-tip-full' : 'dshb-tip-half'}>{peak ? t('tipFullPrice') : t('tipHalfPrice')}</b>
+      {after}
+    </span>
+  )
+}
+
 export interface FooterButtonProps {
   /** 打开统一「余额」弹框。 */
   onOpen(): void
@@ -83,9 +134,11 @@ export interface FooterButtonProps {
   useOpen(): boolean
   /** 价格配置保存 tick（弹框保存成功后变化，立即刷新时段文案）。 */
   usePriceTick?(): number
+  /** 任务完成 tick（插件共享 store）：头部按钮广播会话任务结束后递增，此处强制刷新余额。 */
+  useTaskTick?(): number
 }
 
-export function FooterButton({ onOpen, reportSession, wide = false, useSessions, run, useOpen, usePriceTick }: FooterButtonProps) {
+export function FooterButton({ onOpen, reportSession, wide = false, useSessions, run, useOpen, usePriceTick, useTaskTick }: FooterButtonProps) {
   const currentSessionId = useSessions
     ? (useSessions((s) => s && s.current) as string | undefined)
     : null
@@ -93,10 +146,11 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
 
   const open = useOpen()
   const priceTick = usePriceTick?.() ?? 0
+  const taskTick = useTaskTick?.() ?? 0
   const [peak, setPeak] = useState<boolean | null>(null)
   const [bal, setBal] = useState<{ total: string; currency: string } | null>(null)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (forceBalance = false) => {
     try {
       const res = await run('', { op: 'pricesGet' })
       const config = res.config as PriceConfigView | undefined
@@ -105,8 +159,9 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
       // 网络/路由异常时保持上一次状态，不闪断。
     }
     try {
-      // refresh:false 命中宿主 60s 余额缓存，不触发真实请求。
-      const res = await run('', { op: 'balance', refresh: false })
+      // refresh:false 命中宿主 60s 余额缓存，不触发真实请求；
+      // 任务完成触发的刷新 forceBalance=true 绕过缓存拿到最新余额。
+      const res = await run('', { op: 'balance', refresh: forceBalance })
       const balances = res.balances as BalanceEntryView[] | undefined
       const first = Array.isArray(balances)
         ? balances.find((b) => b.ok === true && Array.isArray(b.balance_infos) && b.balance_infos.length > 0)
@@ -131,24 +186,47 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
   useEffect(() => {
     if (priceTick > 0) void refresh()
   }, [priceTick, refresh])
+  // 会话任务完成（头部按钮广播）：立即强制刷新余额（绕过 60s 缓存）+ 时段文案。
+  useEffect(() => {
+    if (taskTick > 0) void refresh(true)
+  }, [taskTick, refresh])
 
-  const periodSuffix = peak === null
-    ? null
+  // 「余额」+ 时段小圆点作为一个整体锚点挂宿主 Tooltip：悬停二字或圆点都显示
+  // 气泡（高峰红 / 空闲绿，价词着色：高峰「全价」红 / 空闲「半价」绿）。
+  const periodTip = peak === null ? '' : tipPlain(peak)
+  const periodGroup = peak === null
+    ? <span className="dshb-footer-word">{t('balanceBtn')}</span>
     : (
-      <span className={'dshb-btn-badge ' + (peak ? 'dshb-period-peak' : 'dshb-period-off')}>
-        {peak ? t('btnPeak') : t('btnOffPeak')}
-      </span>
+      <Tooltip label={(() => tipRich(peak)) as unknown as () => string} side="top" delayMs={300}>
+        <span className="dshb-footer-word-group">
+          <span className="dshb-footer-word">{t('balanceBtn')}</span>
+          <span
+            className={'dshb-period-dot ' + (peak ? 'dshb-period-dot-peak' : 'dshb-period-dot-off')}
+            aria-label={periodTip}
+          />
+        </span>
+      </Tooltip>
     )
-  const balText = bal === null ? '' : bal.total + ' ' + bal.currency
-  const periodText = peak === null ? '' : peak ? t('btnPeak') : t('btnOffPeak')
-  const fullLabel = t('balanceBtn') + (balText !== '' ? '(' + balText + ')' : '') + (periodText !== '' ? ' ' + periodText : '')
+  const curSym = bal === null ? '' : currencySymbol(bal.currency)
+  const balText = bal === null ? '' : curSym + bal.total
+  const fullLabel = t('balanceBtn') + (balText !== '' ? ' ' + balText : '') + (periodTip !== '' ? ' ' + periodTip : '')
+
+  // 余额数字「上下轮播」动画：值变化时逐位滚动到新值（2 位小数）。
+  const balValue = bal === null
+    ? null
+    : (() => {
+      const n = parseFloat(bal.total)
+      return Number.isFinite(n) ? n : null
+    })()
 
   return (
     <div className={'dshb-footer-group' + (wide ? '' : ' dshb-footer-rail-group')}>
       <button
         type="button"
         className={'dshb-footer-btn' + (wide ? '' : ' dshb-footer-btn-rail')}
-        title={fullLabel}
+        // 宽模式信息全部可见（余额文案 + 圆点气泡），再挂原生 title 会在悬停
+        // 圆点时与 Tooltip 气泡双重弹出；窄栏（仅图标）保留原生 title 兜底。
+        title={wide ? undefined : fullLabel}
         aria-label={fullLabel}
         onClick={onOpen}
       >
@@ -156,9 +234,13 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
         {wide
           ? (
             <span className="dshb-footer-label">
-              <span className="dshb-footer-word">{t('balanceBtn')}</span>
-              {balText !== '' ? <span className="dshb-footer-balance">({balText})</span> : null}
-              {periodSuffix}
+              {periodGroup}
+              {bal !== null ? (
+                <span className="dshb-footer-balance">
+                  {curSym !== '' ? <span className="dshb-footer-cur">{curSym}</span> : null}
+                  <NumberRoller value={balValue} format={(v) => v.toFixed(2)} fallback="--" className="dshb-footer-balance-num" />
+                </span>
+              ) : null}
             </span>
           )
           : null}

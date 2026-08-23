@@ -57,7 +57,7 @@ export function createPlugin(): ClientPluginModule {
 
     apply(ctx: ClientCtx) {
       const run: RunFn = makeRun(ctx)
-      const { store: modalStore, useOpen, autoStore, tickStore, bumpTick, useTick, useAutoSeconds, usePriceTick, bumpPriceTick } = makeBalanceModalStore()
+      const { store: modalStore, useOpen, autoStore, tickStore, bumpTick, useTick, useAutoSeconds, usePriceTick, bumpPriceTick, useTaskTick, bumpTaskTick } = makeBalanceModalStore()
       const slots = ctx.get<SlotsService>('slots')
       if (slots === undefined) return
       injectStyles()
@@ -110,6 +110,7 @@ export function createPlugin(): ClientPluginModule {
             run={run}
             useOpen={useOpen}
             usePriceTick={usePriceTick}
+            useTaskTick={useTaskTick}
           />
         ),
       ))
@@ -123,6 +124,9 @@ export function createPlugin(): ClientPluginModule {
             run={run}
             useTick={useTick}
             usePriceTick={usePriceTick}
+            useSession={props.useSession as ((selector: (s: { running?: boolean }) => unknown) => unknown) | undefined}
+            useTaskTick={useTaskTick}
+            bumpTaskTick={bumpTaskTick}
           />
         ),
       ))

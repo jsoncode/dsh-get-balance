@@ -134,11 +134,11 @@ export interface FooterButtonProps {
   useOpen(): boolean
   /** 价格配置保存 tick（弹框保存成功后变化，立即刷新时段文案）。 */
   usePriceTick?(): number
-  /** 任务完成 tick（插件共享 store）：头部按钮广播会话任务结束后递增，此处强制刷新余额。 */
-  useTaskTick?(): number
+  /** 余额刷新 tick（插件共享 store）：头部按钮确认刚完成的请求走 DeepSeek 官方接口后递增，此处强制刷新余额。 */
+  useBalanceTick?(): number
 }
 
-export function FooterButton({ onOpen, reportSession, wide = false, useSessions, run, useOpen, usePriceTick, useTaskTick }: FooterButtonProps) {
+export function FooterButton({ onOpen, reportSession, wide = false, useSessions, run, useOpen, usePriceTick, useBalanceTick }: FooterButtonProps) {
   const currentSessionId = useSessions
     ? (useSessions((s) => s && s.current) as string | undefined)
     : null
@@ -146,7 +146,7 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
 
   const open = useOpen()
   const priceTick = usePriceTick?.() ?? 0
-  const taskTick = useTaskTick?.() ?? 0
+  const balanceTick = useBalanceTick?.() ?? 0
   const [peak, setPeak] = useState<boolean | null>(null)
   const [bal, setBal] = useState<{ total: string; currency: string } | null>(null)
 
@@ -160,7 +160,7 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
     }
     try {
       // refresh:false 命中宿主 60s 余额缓存，不触发真实请求；
-      // 任务完成触发的刷新 forceBalance=true 绕过缓存拿到最新余额。
+      // 官方请求完成触发的刷新 forceBalance=true 绕过缓存拿到最新余额。
       const res = await run('', { op: 'balance', refresh: forceBalance })
       const balances = res.balances as BalanceEntryView[] | undefined
       const first = Array.isArray(balances)
@@ -186,10 +186,11 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
   useEffect(() => {
     if (priceTick > 0) void refresh()
   }, [priceTick, refresh])
-  // 会话任务完成（头部按钮广播）：立即强制刷新余额（绕过 60s 缓存）+ 时段文案。
+  // 官方请求完成（头部按钮广播，仅 DeepSeek 官方接口的请求）：立即强制刷新余额
+  // （绕过 60s 缓存）+ 时段文案。非官方请求不触发 —— 只更新 token 与预估费用。
   useEffect(() => {
-    if (taskTick > 0) void refresh(true)
-  }, [taskTick, refresh])
+    if (balanceTick > 0) void refresh(true)
+  }, [balanceTick, refresh])
 
   // 「余额」+ 时段小圆点作为一个整体锚点挂宿主 Tooltip：悬停二字或圆点都显示
   // 气泡（高峰红 / 空闲绿，价词着色：高峰「全价」红 / 空闲「半价」绿）。

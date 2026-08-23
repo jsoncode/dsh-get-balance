@@ -4,10 +4,12 @@
  * 预估费用（≈ 在前、货币符号 ¥ 在后，与金额同绿）。文案空格固定为
  * 「前缀 1.87M | ≈¥0.2935」（前缀与 token 之间一个空格、| 两侧空格）。
  * 点击按钮立即刷新一次；启用「定时更新」后按设定间隔自动刷新。
- * 额外监听宿主会话快照的 running 标志（会话级插槽标准套件 useSession 注入）：
- * 任务执行中 running=true，完成后回落 false —— 在该回落瞬间广播 bumpTaskTick
- * （footer 入口随之刷新余额），自身经 useTaskTick 立即重算 token 与预估费用，
- * 保证一轮任务结束后的数字即为最终值。
+ * 额外监听宿主会话快照（会话级插槽标准套件 useSession 注入）：每次 AI 请求
+ * 完成（assistant/message 事件落盘，快照中新增一个更高 seq 的 assistant 节点）
+ * 即重算 token 与预估费用 —— 不是流式逐 token 更新，而是每次请求完成更新一次
+ * （一轮含多次请求时逐次更新）。余额刷新按请求走的接口区分：该请求走 DeepSeek
+ * 官方接口（api.deepseek.com，cost op 的 lastRequestOfficial=true）才广播
+ * bumpBalanceTick 让 footer 强制刷新余额；非官方接口只更新 token 与预估费用。
  */
 import type { RunFn } from '../rpc.ts';
 export interface HeaderButtonProps {
@@ -21,15 +23,16 @@ export interface HeaderButtonProps {
     usePriceTick?(): number;
     /**
      * 宿主注入的会话快照选择 hook（会话级插槽标准套件；运行时提供
-     * 'session' → useSession）。缺省时不做「任务完成」监听。
+     * 'session' → useSession）。缺省时不做「请求完成」监听。
      */
     useSession?(selector: (s: {
-        running?: boolean;
+        nodes?: readonly {
+            kind?: string;
+            seq?: number;
+        }[];
     }) => unknown): unknown;
-    /** 任务完成 tick（插件共享 store）：会话任务结束时递增，自身订阅后刷新。 */
-    useTaskTick?(): number;
-    /** 任务完成广播：检测到 running true→false 时调用，footer 入口随之刷新余额。 */
-    bumpTaskTick?(): void;
+    /** 余额刷新广播：刚完成的请求走 DeepSeek 官方接口时调用，footer 随之强制刷新余额。 */
+    bumpBalanceTick?(): void;
 }
-export declare function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession, useTaskTick, bumpTaskTick }: HeaderButtonProps): import("react").JSX.Element;
+export declare function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession, bumpBalanceTick }: HeaderButtonProps): import("react").JSX.Element;
 //# sourceMappingURL=HeaderButton.d.ts.map

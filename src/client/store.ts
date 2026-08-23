@@ -40,12 +40,13 @@ export interface BalanceModalStore {
   usePriceTick(): number
   bumpPriceTick(): void
   /**
-   * 任务完成 tick：头部按钮监听到会话任务结束（会话快照 running true→false）
-   * 后递增，footer / 头部按钮订阅后各自立即刷新（footer 余额强制绕过 60s 缓存）。
+   * 余额刷新 tick：头部按钮确认刚完成的 AI 请求走 DeepSeek 官方接口
+   * （cost op 的 lastRequestOfficial=true）后递增；footer 订阅后强制刷新余额
+   * （绕过 60s 缓存）。非官方请求不递增 —— 只更新 token 与预估费用，不查余额。
    */
-  taskTickStore: StoreState<number>
-  useTaskTick(): number
-  bumpTaskTick(): void
+  balanceTickStore: StoreState<number>
+  useBalanceTick(): number
+  bumpBalanceTick(): void
 }
 
 function useStoreValue<T>(target: StoreState<T>): T | null {
@@ -60,11 +61,11 @@ export function makeBalanceModalStore(): BalanceModalStore {
   const autoStore = createStore<number>()
   const tickStore = createStore<number>()
   const priceTickStore = createStore<number>()
-  const taskTickStore = createStore<number>()
+  const balanceTickStore = createStore<number>()
   autoStore.value = 0
   tickStore.value = 0
   priceTickStore.value = 0
-  taskTickStore.value = 0
+  balanceTickStore.value = 0
   const useOpen = (): boolean => {
     const [v, setV] = useState<boolean>(!!store.value)
     useEffect(() => store.subscribe(() => setV(!!store.value)), [])
@@ -90,13 +91,13 @@ export function makeBalanceModalStore(): BalanceModalStore {
     priceTickStore.value = (priceTickStore.value ?? 0) + 1
     priceTickStore.emit()
   }
-  const useTaskTick = (): number => {
-    const v = useStoreValue<number>(taskTickStore)
+  const useBalanceTick = (): number => {
+    const v = useStoreValue<number>(balanceTickStore)
     return v ?? 0
   }
-  const bumpTaskTick = (): void => {
-    taskTickStore.value = (taskTickStore.value ?? 0) + 1
-    taskTickStore.emit()
+  const bumpBalanceTick = (): void => {
+    balanceTickStore.value = (balanceTickStore.value ?? 0) + 1
+    balanceTickStore.emit()
   }
-  return { store, useOpen, autoStore, useAutoSeconds, tickStore, useTick, bumpTick, priceTickStore, usePriceTick, bumpPriceTick, taskTickStore, useTaskTick, bumpTaskTick }
+  return { store, useOpen, autoStore, useAutoSeconds, tickStore, useTick, bumpTick, priceTickStore, usePriceTick, bumpPriceTick, balanceTickStore, useBalanceTick, bumpBalanceTick }
 }

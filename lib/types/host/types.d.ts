@@ -130,6 +130,10 @@ export interface CostResult {
     todayAll: CostEntry;
     /** 当前会话命中的价格档（展示用）。 */
     sessionTier?: string;
+    /** 最近一次已完成的 AI 请求是否走 DeepSeek 官方接口（api.deepseek.com）；
+     *  无任何已完成的请求时为 false。浏览器侧据此决定请求完成后是否强制刷新余额：
+     *  非官方请求只更新 token 与预估费用，不发起余额查询。 */
+    lastRequestOfficial: boolean;
 }
 /** /dsh-balance/api 请求体（HTTP 与命令通道共用）。 */
 export interface OpRequest {

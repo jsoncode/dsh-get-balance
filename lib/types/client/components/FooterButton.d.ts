@@ -27,8 +27,8 @@ export interface FooterButtonProps {
     useOpen(): boolean;
     /** 价格配置保存 tick（弹框保存成功后变化，立即刷新时段文案）。 */
     usePriceTick?(): number;
-    /** 任务完成 tick（插件共享 store）：头部按钮广播会话任务结束后递增，此处强制刷新余额。 */
-    useTaskTick?(): number;
+    /** 余额刷新 tick（插件共享 store）：头部按钮确认刚完成的请求走 DeepSeek 官方接口后递增，此处强制刷新余额。 */
+    useBalanceTick?(): number;
 }
-export declare function FooterButton({ onOpen, reportSession, wide, useSessions, run, useOpen, usePriceTick, useTaskTick }: FooterButtonProps): import("react").JSX.Element;
+export declare function FooterButton({ onOpen, reportSession, wide, useSessions, run, useOpen, usePriceTick, useBalanceTick }: FooterButtonProps): import("react").JSX.Element;
 //# sourceMappingURL=FooterButton.d.ts.map

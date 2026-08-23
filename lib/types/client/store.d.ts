@@ -24,12 +24,13 @@ export interface BalanceModalStore {
     usePriceTick(): number;
     bumpPriceTick(): void;
     /**
-     * 任务完成 tick：头部按钮监听到会话任务结束（会话快照 running true→false）
-     * 后递增，footer / 头部按钮订阅后各自立即刷新（footer 余额强制绕过 60s 缓存）。
+     * 余额刷新 tick：头部按钮确认刚完成的 AI 请求走 DeepSeek 官方接口
+     * （cost op 的 lastRequestOfficial=true）后递增；footer 订阅后强制刷新余额
+     * （绕过 60s 缓存）。非官方请求不递增 —— 只更新 token 与预估费用，不查余额。
      */
-    taskTickStore: StoreState<number>;
-    useTaskTick(): number;
-    bumpTaskTick(): void;
+    balanceTickStore: StoreState<number>;
+    useBalanceTick(): number;
+    bumpBalanceTick(): void;
 }
 /** 统一「余额」弹框的打开状态（footer 入口 open，overlay 弹框消费）。 */
 export declare function makeBalanceModalStore(): BalanceModalStore;

@@ -76,9 +76,12 @@ shows a live "Session ≈xx CNY". UI copy is bilingual
   the current session's total tokens (compact K/M/B/T/P format) and its
   estimated cost.
 - **Clicking the button refreshes once**; auto-refreshes at the configured interval;
-  refreshes on session switch; and refreshes the moment a turn/task finishes
-  (the host session snapshot's `running` flag drops back to false) — the same
-  completion signal also force-refreshes the footer balance (bypassing its 60s cache).
+  refreshes on session switch; and refreshes the moment each AI request completes
+  (the host session snapshot gains a new `assistant` message node — request-level,
+  not per streamed token), so a turn with several requests updates after each one.
+  Only completions that hit the official DeepSeek API (api.deepseek.com) also
+  force-refresh the footer balance (bypassing its 60s cache) — requests to
+  non-official endpoints update tokens & cost only, without a balance query.
 
 ### Entry button (sidebar footer)
 

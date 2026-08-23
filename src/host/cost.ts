@@ -103,12 +103,15 @@ interface UsageLike {
 /** 一个 (turn,step) 的折叠结果。 */
 interface StepSample {
   turn: number
+  step: number
   buckets: UsageBuckets
   model?: string
   /** 该样本实际请求所走的服务商（request/context 的 provider，如 deepseek-official）。 */
   provider?: string
   /** 最终样本的事件时间（ms）；缺省时按当前时间判时段。 */
   time?: number
+  /** 是否由 assistant/message（请求完成）落盘；chunk usage 早期样本无此标志。 */
+  final?: boolean
 }
 
 /** 今日扫描中单个服务商（API key）的聚合桶。 */
@@ -381,14 +384,29 @@ function foldSessionEvents(events: readonly SessionEventLike[]): { samples: Map<
     const step = numberOr(data.step)
     samples.set(turn + ':' + step, {
       turn,
+      step,
       buckets: bucketsFrom(usage),
       ...currentModel === undefined ? {} : { model: currentModel },
       ...currentProvider === undefined ? {} : { provider: currentProvider },
       ...typeof event.time === 'number' && Number.isFinite(event.time) ? { time: event.time } : {},
+      ...event.type === 'assistant/message' ? { final: true } : {},
     })
     if (turn > maxTurn) maxTurn = turn
   }
   return { samples, maxTurn }
+}
+
+/**
+ * 取最近一次「已完成的请求」样本：turn 最大、step 最大，且必须由
+ * assistant/message 落盘（final）—— 流式中的 usage chunk 早期样本不算完成。
+ */
+function lastCompletedSample(samples: Map<string, StepSample>): StepSample | undefined {
+  let best: StepSample | undefined
+  for (const sample of samples.values()) {
+    if (sample.final !== true) continue
+    if (best === undefined || sample.turn > best.turn || (sample.turn === best.turn && sample.step > best.step)) best = sample
+  }
+  return best
 }
 
 /**
@@ -470,6 +488,8 @@ export async function computeCosts(
     todayProject: today.project,
     todayAll: today.all,
     ...sessionModel === undefined ? {} : { sessionTier: sessionModel + ' → ' + (tier?.name ?? '?') },
+    // 最近一次已完成的请求是否走 DeepSeek 官方接口（浏览器侧据此决定是否刷新余额）。
+    lastRequestOfficial: isOfficialProvider(lastCompletedSample(samples)?.provider, providerBaseUrls),
   }
 }
 

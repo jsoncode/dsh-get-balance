@@ -33,10 +33,10 @@ shows a live "Session ≈xx CNY". UI copy is bilingual
 ### Cost tab — per-API-key breakdown
 
 - Four cards: **Last turn / This session / Today · this project / Today · all**,
-  each with the total billed amount + a stacked bar + legend (input / cache read /
-  cache write / output — pure divs, no chart library).
+  each with the total billed amount + a compact token legend (input / cache read /
+  cache write / output, K/M/B/T/P-suffixed numbers) + a **cache hit rate** line.
 - **Per API key rows**: inside every card, each configured key (provider route)
-  gets its own row showing its own four-bucket token counts, a mini bar, an
+  gets its own row showing its own four-bucket token counts, an
   official/non-official chip and its own cost.
 - **Token usage is counted per key regardless of officialness**; **cost is only
   computed for official keys** (API domain `api.deepseek.com`) — non-official keys
@@ -60,7 +60,9 @@ shows a live "Session ≈xx CNY". UI copy is bilingual
 - Each model has **peak and off-peak** sets of four prices (per million tokens:
   input / cache read / cache write / output, CNY).
 - **Periods are configurable**: peak windows (cross-midnight supported) + a
-  **timezone-offset slider** (UTC-12..+12, shown as 东八区 / 西五区 / 零时区).
+  **timezone-offset slider** (UTC-12..+12, shown as 东八区 / 西五区 / 零时区)
+  + a **"weekends half price" toggle** (Saturdays & Sundays excluded from peak
+  windows and billed at off-peak rates all day).
   Official default: Beijing 9:00–12:00 & 14:00–18:00 are peak; off-peak = peak × 0.5.
 - Built-in fallback is the official V4 tiers (`deepseek-v4-flash` /
   `deepseek-v4-pro` / `deepseek-v4-flash-vision-exp`). Old flat-format
@@ -70,7 +72,8 @@ shows a live "Session ≈xx CNY". UI copy is bilingual
 ### Session-header live button
 
 - Registered on `conversation.session.header.utilities`, showing
-  **Session ≈xx CNY** (amount green) — the current session's estimated cost only.
+  **Session xxM | ¥≈xx** (both green) — the current session's total
+  tokens (compact K/M/B/T/P format) and its estimated cost.
 - **Clicking the button refreshes once**; auto-refreshes at the configured interval;
   refreshes on session switch.
 

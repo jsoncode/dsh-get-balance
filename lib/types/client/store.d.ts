@@ -19,6 +19,10 @@ export interface BalanceModalStore {
     tickStore: StoreState<number>;
     useTick(): number;
     bumpTick(): void;
+    /** 价格配置保存 tick：弹框保存成功后递增，footer/头部按钮订阅后立即刷新时段与费用。 */
+    priceTickStore: StoreState<number>;
+    usePriceTick(): number;
+    bumpPriceTick(): void;
 }
 /** 统一「余额」弹框的打开状态（footer 入口 open，overlay 弹框消费）。 */
 export declare function makeBalanceModalStore(): BalanceModalStore;

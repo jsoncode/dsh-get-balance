@@ -57,7 +57,7 @@ export function createPlugin(): ClientPluginModule {
 
     apply(ctx: ClientCtx) {
       const run: RunFn = makeRun(ctx)
-      const { store: modalStore, useOpen, autoStore, tickStore, bumpTick, useTick, useAutoSeconds } = makeBalanceModalStore()
+      const { store: modalStore, useOpen, autoStore, tickStore, bumpTick, useTick, useAutoSeconds, usePriceTick, bumpPriceTick } = makeBalanceModalStore()
       const slots = ctx.get<SlotsService>('slots')
       if (slots === undefined) return
       injectStyles()
@@ -109,6 +109,7 @@ export function createPlugin(): ClientPluginModule {
             useSessions={props.useSessions as FooterWorkspaceHooks['useSessions']}
             run={run}
             useOpen={useOpen}
+            usePriceTick={usePriceTick}
           />
         ),
       ))
@@ -121,6 +122,7 @@ export function createPlugin(): ClientPluginModule {
             sessionId={String(props.sessionId ?? '')}
             run={run}
             useTick={useTick}
+            usePriceTick={usePriceTick}
           />
         ),
       ))
@@ -136,6 +138,7 @@ export function createPlugin(): ClientPluginModule {
             getSession={getSession}
             useTick={useTick}
             useAutoSeconds={useAutoSeconds}
+            bumpPriceTick={bumpPriceTick}
             setAutoSeconds={(seconds) => {
               autoStore.value = seconds
               autoStore.emit()

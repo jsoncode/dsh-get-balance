@@ -17,7 +17,8 @@
  * 计费，非官方 key 金额恒为 0（展示为「不计费」）。
  *
  * 计费口径（每百万 tokens 单价）：时段判定：事件时间 → 配置时区偏移后的本地
- * HH:MM → 是否落在任一高峰窗口；其余时间为空闲时段。同一模型两套单价分别用于
+ * HH:MM → 是否落在任一高峰窗口（开启「周六日半价」时周六/周日整天为空闲）；
+ * 其余时间为空闲时段。同一模型两套单价分别用于
  * 对应时段。(uncachedInput*input + cacheRead*cacheRead + cacheWrite*cacheWrite
  * + output*output) / 1e6
  */
@@ -73,7 +74,7 @@ export declare const OFFICIAL_API_HOST = "api.deepseek.com";
 export declare function isOfficialProvider(provider: string | undefined, providerBaseUrls: Record<string, string>): boolean;
 /**
  * 把任意存储值规范化为 PriceConfig：
- * - 新版对象 { tiers, timezoneOffsetMinutes?, peakWindows? }；
+ * - 新版对象 { tiers, timezoneOffsetMinutes?, peakWindows?, weekendOffPeak? }；
  * - 旧版扁平数组（迁移：单一时段单价 → 高峰/空闲同价，窗口用默认值）；
  * - 旧版内置默认档（deepseek-chat / deepseek-reasoner / 兜底）→ 直接升级为当前官方三档；
  * - 其它（缺失/非法）→ 默认配置。
@@ -82,7 +83,7 @@ export declare function normalizePriceConfig(raw: unknown): PriceConfig;
 /**
  * 判定一个时刻是否处于高峰时段。
  * @param timeMs - 事件时间（ms）。
- * @param config - 价格配置（含时区偏移与高峰窗口）。
+ * @param config - 价格配置（含时区偏移与高峰窗口；开启周六日半价时周末整天为空闲）。
  */
 export declare function isPeakTime(timeMs: number, config: PriceConfig): boolean;
 /** 取某档在指定时刻生效的单价集合。 */

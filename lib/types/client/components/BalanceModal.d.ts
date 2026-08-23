@@ -21,6 +21,8 @@ export interface BalanceModalProps {
     useAutoSeconds(): number;
     /** 更新定时刷新间隔（秒）。 */
     setAutoSeconds(seconds: number): void;
+    /** 价格配置保存成功后调用：通知 footer / 头部按钮立即刷新时段与费用显示。 */
+    bumpPriceTick(): void;
 }
-export declare function BalanceModal({ run, useOpen, close, getSession, useTick, useAutoSeconds, setAutoSeconds }: BalanceModalProps): import("react").JSX.Element | null;
+export declare function BalanceModal({ run, useOpen, close, getSession, useTick, useAutoSeconds, setAutoSeconds, bumpPriceTick }: BalanceModalProps): import("react").JSX.Element | null;
 //# sourceMappingURL=BalanceModal.d.ts.map

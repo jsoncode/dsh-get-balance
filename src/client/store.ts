@@ -35,6 +35,10 @@ export interface BalanceModalStore {
   tickStore: StoreState<number>
   useTick(): number
   bumpTick(): void
+  /** 价格配置保存 tick：弹框保存成功后递增，footer/头部按钮订阅后立即刷新时段与费用。 */
+  priceTickStore: StoreState<number>
+  usePriceTick(): number
+  bumpPriceTick(): void
 }
 
 function useStoreValue<T>(target: StoreState<T>): T | null {
@@ -48,8 +52,10 @@ export function makeBalanceModalStore(): BalanceModalStore {
   const store = createStore<boolean>()
   const autoStore = createStore<number>()
   const tickStore = createStore<number>()
+  const priceTickStore = createStore<number>()
   autoStore.value = 0
   tickStore.value = 0
+  priceTickStore.value = 0
   const useOpen = (): boolean => {
     const [v, setV] = useState<boolean>(!!store.value)
     useEffect(() => store.subscribe(() => setV(!!store.value)), [])
@@ -67,5 +73,13 @@ export function makeBalanceModalStore(): BalanceModalStore {
     tickStore.value = (tickStore.value ?? 0) + 1
     tickStore.emit()
   }
-  return { store, useOpen, autoStore, useAutoSeconds, tickStore, useTick, bumpTick }
+  const usePriceTick = (): number => {
+    const v = useStoreValue<number>(priceTickStore)
+    return v ?? 0
+  }
+  const bumpPriceTick = (): void => {
+    priceTickStore.value = (priceTickStore.value ?? 0) + 1
+    priceTickStore.emit()
+  }
+  return { store, useOpen, autoStore, useAutoSeconds, tickStore, useTick, bumpTick, priceTickStore, usePriceTick, bumpPriceTick }
 }

@@ -5,8 +5,8 @@
  *
  * 右侧文案横排显示：「余额(xxCNY) 高峰时段/空闲时段 半价」——金额括号紧跟
  * 「余额」，时段文案（高峰红色/空闲绿色）随当前时间动态变化。
- * 时段判定与宿主一致（时区偏移 + 高峰窗口，按当前时间），每 60 秒刷新，
- * 弹框关闭（保存价格后）也会立即刷新。
+ * 时段判定与宿主一致（时区偏移 + 高峰窗口 + 周六日半价，按当前时间），
+ * 每 60 秒刷新；弹框内保存价格成功或关闭弹框后立即刷新。
  */
 import type { RunFn } from '../rpc.ts';
 export interface FooterButtonProps {
@@ -22,6 +22,8 @@ export interface FooterButtonProps {
     run: RunFn;
     /** 弹框开合状态（关闭后刷新按钮时段文案）。 */
     useOpen(): boolean;
+    /** 价格配置保存 tick（弹框保存成功后变化，立即刷新时段文案）。 */
+    usePriceTick?(): number;
 }
-export declare function FooterButton({ onOpen, reportSession, wide, useSessions, run, useOpen }: FooterButtonProps): import("react").JSX.Element;
+export declare function FooterButton({ onOpen, reportSession, wide, useSessions, run, useOpen, usePriceTick }: FooterButtonProps): import("react").JSX.Element;
 //# sourceMappingURL=FooterButton.d.ts.map

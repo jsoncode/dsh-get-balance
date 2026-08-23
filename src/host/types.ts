@@ -59,6 +59,8 @@ export interface PriceConfig {
   /** 高峰时段窗口所依据的时区偏移（分钟；北京 UTC+8 = 480）。 */
   timezoneOffsetMinutes: number
   peakWindows: TimeWindow[]
+  /** 周六日半价：开启后周六/周日整天按空闲时段计费（从高峰窗口中排除）。 */
+  weekendOffPeak?: boolean
 }
 
 /** 用户手动附加的 API key（不在 dsh providers 配置中的）。 */

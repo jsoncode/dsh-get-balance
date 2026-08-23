@@ -17,7 +17,8 @@
  * 计费，非官方 key 金额恒为 0（展示为「不计费」）。
  *
  * 计费口径（每百万 tokens 单价）：时段判定：事件时间 → 配置时区偏移后的本地
- * HH:MM → 是否落在任一高峰窗口；其余时间为空闲时段。同一模型两套单价分别用于
+ * HH:MM → 是否落在任一高峰窗口（开启「周六日半价」时周六/周日整天为空闲）；
+ * 其余时间为空闲时段。同一模型两套单价分别用于
  * 对应时段。(uncachedInput*input + cacheRead*cacheRead + cacheWrite*cacheWrite
  * + output*output) / 1e6
  */
@@ -69,6 +70,7 @@ export const DEFAULT_PRICE_CONFIG: PriceConfig = {
   })),
   timezoneOffsetMinutes: DEFAULT_TIMEZONE_OFFSET_MINUTES,
   peakWindows: DEFAULT_PEAK_WINDOWS.map((w) => ({ ...w })),
+  weekendOffPeak: false,
 }
 
 /** 会话事件的最小读取视图（结构化声明，不依赖完整类型链）。 */
@@ -220,7 +222,7 @@ function isLegacyDefaultTiers(tiers: readonly PriceTier[]): boolean {
 
 /**
  * 把任意存储值规范化为 PriceConfig：
- * - 新版对象 { tiers, timezoneOffsetMinutes?, peakWindows? }；
+ * - 新版对象 { tiers, timezoneOffsetMinutes?, peakWindows?, weekendOffPeak? }；
  * - 旧版扁平数组（迁移：单一时段单价 → 高峰/空闲同价，窗口用默认值）；
  * - 旧版内置默认档（deepseek-chat / deepseek-reasoner / 兜底）→ 直接升级为当前官方三档；
  * - 其它（缺失/非法）→ 默认配置。
@@ -255,6 +257,7 @@ export function normalizePriceConfig(raw: unknown): PriceConfig {
       tiers,
       timezoneOffsetMinutes: Math.round(offset),
       peakWindows: windows.length > 0 ? windows : DEFAULT_PEAK_WINDOWS.map((w) => ({ ...w })),
+      weekendOffPeak: obj['weekendOffPeak'] === true,
     }
   }
   return fallback()
@@ -265,10 +268,15 @@ export function normalizePriceConfig(raw: unknown): PriceConfig {
 /**
  * 判定一个时刻是否处于高峰时段。
  * @param timeMs - 事件时间（ms）。
- * @param config - 价格配置（含时区偏移与高峰窗口）。
+ * @param config - 价格配置（含时区偏移与高峰窗口；开启周六日半价时周末整天为空闲）。
  */
 export function isPeakTime(timeMs: number, config: PriceConfig): boolean {
   const local = new Date(timeMs + config.timezoneOffsetMinutes * 60_000)
+  // 周六日半价：周六/周日整天从高峰窗口中排除，按空闲时段计费。
+  if (config.weekendOffPeak === true) {
+    const day = local.getUTCDay()
+    if (day === 0 || day === 6) return false
+  }
   const minutes = local.getUTCHours() * 60 + local.getUTCMinutes()
   for (const window of config.peakWindows) {
     const start = parseClock(window.start)
@@ -652,6 +660,7 @@ async function scanToday(
         const configKey = JSON.stringify({
           offset: config.timezoneOffsetMinutes,
           windows: config.peakWindows,
+          weekend: config.weekendOffPeak === true,
           providers: providerBaseUrls,
         })
         const cached = todayFileCache.get(cacheKey)

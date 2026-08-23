@@ -65,13 +65,13 @@ const COPY: Record<'zh' | 'en', Record<string, unknown>> = {
     costTodayProject: '今日·本项目',
     costTodayAll: '今日·全部',
     costTier: '当前生效价格档',
-    noUsage: '暂无用量',
     tokensUncachedInput: '输入',
     tokensCacheRead: '缓存命中',
     tokensCacheWrite: '缓存写入',
     tokensOutput: '输出',
     costHint: '金额仅对官方 Key（api.deepseek.com）按价格档计费；各 API Key 的 token 用量分别统计数量（不区分官方与否）。宿主缓存 60 秒；今日两项扫描 ~/.dsh/sessions 日志。',
     costByKeyTitle: '按 API Key 明细',
+    hitRate: '命中率',
     chipOfficial: '官方',
     chipNonOfficial: '非官方',
     notBilled: '不计费',
@@ -91,6 +91,8 @@ const COPY: Record<'zh' | 'en', Record<string, unknown>> = {
     priceInputMiss: '百万tokens输入\n（缓存未命中）',
     priceOutput: '百万tokens输出',
     windowTitle: '时段配置',
+    weekendHalfPrice: '周六日半价',
+    weekendHint: '勾选后，周六/周日整天按空闲时段单价计费（从高峰窗口中排除）',
     windowHint: '高峰时段窗口（其余时间为空闲时段），格式 HH:MM，按下方时区偏移解释。官方默认：北京时间 9:00–12:00、14:00–18:00。',
     windowStart: '开始',
     windowEnd: '结束',
@@ -166,13 +168,13 @@ const COPY: Record<'zh' | 'en', Record<string, unknown>> = {
     costTodayProject: 'Today · project',
     costTodayAll: 'Today · all',
     costTier: 'Active price tier',
-    noUsage: 'No usage yet',
     tokensUncachedInput: 'Input',
     tokensCacheRead: 'Cache hit',
     tokensCacheWrite: 'Cache write',
     tokensOutput: 'Output',
     costHint: 'Only official keys (api.deepseek.com) are billed by price tier; token usage is counted per API key (official or not). Host caches 60s; today entries scan ~/.dsh/sessions logs.',
     costByKeyTitle: 'Per API key',
+    hitRate: 'Hit rate',
     chipOfficial: 'official',
     chipNonOfficial: 'non-official',
     notBilled: 'not billed',
@@ -192,6 +194,8 @@ const COPY: Record<'zh' | 'en', Record<string, unknown>> = {
     priceInputMiss: 'Input\n(cache miss)',
     priceOutput: 'Output',
     windowTitle: 'Time windows',
+    weekendHalfPrice: 'Weekends half price',
+    weekendHint: 'When checked, Saturdays and Sundays are billed at off-peak rates all day (excluded from peak windows)',
     windowHint: 'Peak windows (the rest is off-peak), format HH:MM, interpreted in the timezone offset below. Official default: Beijing 9:00-12:00, 14:00-18:00.',
     windowStart: 'Start',
     windowEnd: 'End',
@@ -255,8 +259,41 @@ export const fmtAmount = (amount: number | undefined): string => {
   return amount.toFixed(2)
 }
 
-/** token 数量格式化（千分位）。 */
+/** 紧凑 token 单位（降序）：K=1e3 / M=1e6 / B=1e9 / T=1e12 / P=1e15。 */
+const TOKEN_UNITS: ReadonlyArray<{ div: number; suffix: string }> = [
+  { div: 1e15, suffix: 'P' },
+  { div: 1e12, suffix: 'T' },
+  { div: 1e9, suffix: 'B' },
+  { div: 1e6, suffix: 'M' },
+  { div: 1e3, suffix: 'K' },
+]
+
+/** token 数量紧凑格式化：1234567 → 1.23M，减小长数字占位（最多 3 位有效数字）。 */
 export const fmtTokens = (n: number | undefined): string => {
   if (n === undefined || !Number.isFinite(n)) return '0'
-  return Math.round(n).toLocaleString('en-US')
+  const v = Math.round(n)
+  const abs = Math.abs(v)
+  if (abs < 1000) return String(v)
+  /** 缩放后的数值保留最多 3 位有效数字并去掉尾随 0。 */
+  const scale = (div: number): string => {
+    const scaled = v / div
+    const intDigits = Math.max(1, Math.floor(Math.log10(Math.abs(scaled))) + 1)
+    let s = scaled.toFixed(Math.min(2, Math.max(0, 3 - intDigits)))
+    if (s.includes('.')) s = s.replace(/\.?0+$/, '')
+    return s
+  }
+  for (let i = 0; i < TOKEN_UNITS.length; i++) {
+    const unit = TOKEN_UNITS[i] as { div: number; suffix: string }
+    if (abs >= unit.div) {
+      // 四舍五入可能进位到上一档（如 999999999 → "1000M"），逐级上调单位。
+      let s = scale(unit.div)
+      let j = i
+      while (Math.abs(Number(s)) >= 1000 && j > 0) {
+        j -= 1
+        s = scale((TOKEN_UNITS[j] as { div: number }).div)
+      }
+      return s + (TOKEN_UNITS[j] as { suffix: string }).suffix
+    }
+  }
+  return String(v)
 }

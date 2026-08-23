@@ -11,6 +11,6 @@ export declare const tErr: (res: {
 } | null | undefined, fallback?: string) => string;
 /** 金额格式化（保留合理小数位）。 */
 export declare const fmtAmount: (amount: number | undefined) => string;
-/** token 数量格式化（千分位）。 */
+/** token 数量紧凑格式化：1234567 → 1.23M，减小长数字占位（最多 3 位有效数字）。 */
 export declare const fmtTokens: (n: number | undefined) => string;
 //# sourceMappingURL=i18n.d.ts.map

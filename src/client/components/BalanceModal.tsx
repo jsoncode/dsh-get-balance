@@ -98,6 +98,8 @@ interface TimeWindowView {
 interface PriceWindowView {
   timezoneOffsetMinutes: number
   peakWindows: TimeWindowView[]
+  /** 周六日半价：周六/周日整天按空闲时段计费。 */
+  weekendOffPeak: boolean
 }
 
 interface KeyView {
@@ -120,6 +122,8 @@ export interface BalanceModalProps {
   useAutoSeconds(): number
   /** 更新定时刷新间隔（秒）。 */
   setAutoSeconds(seconds: number): void
+  /** 价格配置保存成功后调用：通知 footer / 头部按钮立即刷新时段与费用显示。 */
+  bumpPriceTick(): void
 }
 
 const sourceChipKey: Record<ProviderView['source'], string> = {
@@ -135,17 +139,29 @@ const METRIC_GROUPS: Array<{ labelKey: string; field: 'input' | 'cacheRead' | 'o
   { labelKey: 'priceOutput', field: 'output' },
 ]
 
-/** 叠加柱状图四段：输入 / 缓存命中 / 缓存写入 / 输出（纯 div，无交互）。 */
-const TOKEN_SEGMENTS: Array<{ key: keyof BucketsView; labelKey: string; color: string }> = [
-  { key: 'uncachedInput', labelKey: 'tokensUncachedInput', color: '#1668e3' },
-  { key: 'cacheRead', labelKey: 'tokensCacheRead', color: '#13c2c2' },
-  { key: 'cacheWrite', labelKey: 'tokensCacheWrite', color: '#fa8c16' },
-  { key: 'output', labelKey: 'tokensOutput', color: '#722ed1' },
+/** token 四桶明细的展示顺序：输入 / 缓存命中 / 缓存写入 / 输出。 */
+const TOKEN_SEGMENTS: Array<{ key: keyof BucketsView; labelKey: string }> = [
+  { key: 'uncachedInput', labelKey: 'tokensUncachedInput' },
+  { key: 'cacheRead', labelKey: 'tokensCacheRead' },
+  { key: 'cacheWrite', labelKey: 'tokensCacheWrite' },
+  { key: 'output', labelKey: 'tokensOutput' },
 ]
 
-/** 四桶 token 总数。 */
-function totalTokensView(b: BucketsView): number {
-  return b.uncachedInput + b.cacheRead + b.cacheWrite + b.output
+/**
+ * 缓存命中率（%）：缓存命中 token 占全部输入侧 token
+ * （未命中 + 命中 + 写入）的比例；无输入时返回 null。
+ */
+function cacheHitRate(b: BucketsView): number | null {
+  const inputSide = b.uncachedInput + b.cacheRead + b.cacheWrite
+  if (inputSide <= 0) return null
+  return (b.cacheRead / inputSide) * 100
+}
+
+/** 命中率文案：97.3%（一位小数，整数省略小数位）；无输入时为 —。 */
+function fmtRate(rate: number | null): string {
+  if (rate === null) return '—'
+  const s = rate.toFixed(1)
+  return (s.endsWith('.0') ? s.slice(0, -2) : s) + '%'
 }
 
 /** 中文数字（用于「东八区」式时区名）。 */
@@ -163,7 +179,7 @@ function formatTimezone(offsetHours: number): string {
   return h > 0 ? 'UTC+' + h : 'UTC' + h
 }
 
-export function BalanceModal({ run, useOpen, close, getSession, useTick, useAutoSeconds, setAutoSeconds }: BalanceModalProps) {
+export function BalanceModal({ run, useOpen, close, getSession, useTick, useAutoSeconds, setAutoSeconds, bumpPriceTick }: BalanceModalProps) {
   const open = useOpen()
   const tick = useTick()
   const autoSeconds = useAutoSeconds()
@@ -189,7 +205,7 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
   const [costLoading, setCostLoading] = useState(false)
   // 价格 tab
   const [prices, setPrices] = useState<PriceView[] | null>(null)
-  const [windowCfg, setWindowCfg] = useState<PriceWindowView>({ timezoneOffsetMinutes: 480, peakWindows: [] })
+  const [windowCfg, setWindowCfg] = useState<PriceWindowView>({ timezoneOffsetMinutes: 480, peakWindows: [], weekendOffPeak: false })
   const [priceMsg, setPriceMsg] = useState('')
 
   /** 余额查询：providers 与 balances 一并回填。 */
@@ -232,12 +248,13 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
   const loadPrices = useCallback(async (): Promise<void> => {
     const res = await run(getSession(), { op: 'pricesGet' })
     if (res.ok) {
-      const config = res.config as { tiers?: PriceView[]; timezoneOffsetMinutes?: number; peakWindows?: TimeWindowView[] } | undefined
+      const config = res.config as { tiers?: PriceView[]; timezoneOffsetMinutes?: number; peakWindows?: TimeWindowView[]; weekendOffPeak?: boolean } | undefined
       if (Array.isArray(config?.tiers)) setPrices(config.tiers as PriceView[])
       if (config !== undefined) {
         setWindowCfg({
           timezoneOffsetMinutes: typeof config.timezoneOffsetMinutes === 'number' ? config.timezoneOffsetMinutes : 480,
           peakWindows: Array.isArray(config.peakWindows) ? config.peakWindows as TimeWindowView[] : [],
+          weekendOffPeak: config.weekendOffPeak === true,
         })
       }
     }
@@ -344,18 +361,21 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
     const cfg = windowCfgNext ?? windowCfg
     const res = await run(getSession(), {
       op: 'pricesSave',
-      config: { tiers: list, timezoneOffsetMinutes: cfg.timezoneOffsetMinutes, peakWindows: cfg.peakWindows },
+      config: { tiers: list, timezoneOffsetMinutes: cfg.timezoneOffsetMinutes, peakWindows: cfg.peakWindows, weekendOffPeak: cfg.weekendOffPeak },
     })
     if (res.ok) {
-      const config = res.config as { tiers?: PriceView[]; timezoneOffsetMinutes?: number; peakWindows?: TimeWindowView[] } | undefined
+      const config = res.config as { tiers?: PriceView[]; timezoneOffsetMinutes?: number; peakWindows?: TimeWindowView[]; weekendOffPeak?: boolean } | undefined
       if (Array.isArray(config?.tiers)) setPrices(config.tiers as PriceView[])
       if (config !== undefined) {
         setWindowCfg({
           timezoneOffsetMinutes: typeof config.timezoneOffsetMinutes === 'number' ? config.timezoneOffsetMinutes : 480,
           peakWindows: Array.isArray(config.peakWindows) ? config.peakWindows as TimeWindowView[] : [],
+          weekendOffPeak: config.weekendOffPeak === true,
         })
       }
       setPriceMsg(t('pricesSaved'))
+      // 广播「价格已保存」：footer 时段徽标 / 头部费用按钮立即刷新（无需关闭弹框）。
+      bumpPriceTick()
       void loadCost()
     } else {
       setPriceMsg(tErr(res, t('saveFailed')))
@@ -475,38 +495,9 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
     return { label: provider }
   }
 
-  /** 一条 token 四段柱状图（纯 div）。 */
-  const usageBar = (buckets: BucketsView, small: boolean) => {
-    const total = totalTokensView(buckets)
-    return (
-      <div
-        className={'dshb-bar' + (small ? ' dshb-bar-sm' : '')}
-        role="img"
-        aria-label={TOKEN_SEGMENTS.map((s) => t(s.labelKey) + ': ' + fmtTokens(buckets[s.key])).join(', ')}
-      >
-        {total > 0
-          ? TOKEN_SEGMENTS.map((seg) => {
-            const v = buckets[seg.key]
-            return v > 0
-              ? (
-                <div
-                  key={seg.key}
-                  className="dshb-bar-seg"
-                  style={{ width: (v / total * 100) + '%', background: seg.color }}
-                  title={t(seg.labelKey) + ': ' + fmtTokens(v)}
-                />
-              )
-              : null
-          })
-          : null}
-      </div>
-    )
-  }
-
   const costCard = (label: string, entry: CostEntryView | undefined) => {
     const byKey: KeyCostEntryView[] = entry?.byKey ?? []
     const total: BucketsView = entry?.buckets ?? { uncachedInput: 0, cacheRead: 0, cacheWrite: 0, output: 0 }
-    const totalTokens = totalTokensView(total)
     return (
       <div className="dshb-cost-card">
         <div className="dshb-cost-label">{label}</div>
@@ -519,20 +510,18 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
                 <span className="dshb-cost-currency">{entry.currency}</span>
               </div>
 
-              {/* ── 合计：全部 API Key 的 token 柱状图 + 图例（不区分官方与否） ── */}
-              {totalTokens > 0
-                ? usageBar(total, false)
-                : <div className="dshb-bar dshb-bar-empty">{t('noUsage')}</div>}
-              <div className="dshb-bar-legend">
+              {/* ── 合计：全部 API Key 的 token 四桶明细（不区分官方与否）+ 缓存命中率 ── */}
+              <div className="dshb-tokens-legend">
                 {TOKEN_SEGMENTS.map((seg) => (
                   <span key={seg.key}>
-                    <span className="dshb-bar-legend-name">
-                      <i style={{ background: seg.color }} />
-                      {t(seg.labelKey)}
-                    </span>
+                    <span className="dshb-tokens-name">{t(seg.labelKey)}</span>
                     <b>{fmtTokens(total[seg.key])}</b>
                   </span>
                 ))}
+                <span className="dshb-hitrate-row">
+                  <span className="dshb-tokens-name">{t('hitRate')}</span>
+                  <b>{fmtRate(cacheHitRate(total))}</b>
+                </span>
               </div>
 
               {/* ── 按 API Key 分行：token 各自统计；费用仅官方 Key（api.deepseek.com）计算 ── */}
@@ -554,7 +543,6 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
                               ? <span className="dshb-key-cost-amount">≈{fmtAmount(k.amount)} {k.currency}</span>
                               : <span className="dshb-chip">{t('notBilled')}</span>}
                           </div>
-                          {usageBar(k.buckets, true)}
                           <div className="dshb-key-cost-counts">
                             {TOKEN_SEGMENTS.map((seg) => t(seg.labelKey) + ' ' + fmtTokens(k.buckets[seg.key])).join(' · ')}
                           </div>
@@ -593,7 +581,19 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
         : (
           <div>
             <div className="dshb-window-box">
-              <div className="dshb-window-title">{t('windowTitle')}</div>
+              <div className="dshb-window-head">
+                <span className="dshb-window-title">{t('windowTitle')}</span>
+                {/* 周六日半价：勾选后周六/周日整天按空闲时段计费（随「保存」持久化） */}
+                <label className="dshb-weekend" title={t('weekendHint')}>
+                  <input
+                    type="checkbox"
+                    checked={windowCfg.weekendOffPeak}
+                    aria-label={t('weekendHalfPrice')}
+                    onChange={(e) => setWindowCfg({ ...windowCfg, weekendOffPeak: e.target.checked })}
+                  />
+                  <span>{t('weekendHalfPrice')}</span>
+                </label>
+              </div>
               <p className="dshb-hint">{t('windowHint')}</p>
               <div className="dshb-window-list">
                 {windowCfg.peakWindows.map((w, wi) => (
@@ -698,8 +698,14 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
   return (
     <div className="dshb-backdrop" onClick={(e) => { if (e.target === e.currentTarget) close() }}>
       <div className="dshb-modal" role="dialog" aria-modal="true">
+        {/* 单行头部：标题 + 三个 tab 同行，右侧为 定时更新 / 刷新 / 关闭 */}
         <div className="dshb-modal-header">
           <div className="dshb-modal-title">{t('modalTitle')}</div>
+          <div className="dshb-tabs">
+            <button type="button" className={'dshb-tab' + (tab === 'balance' ? ' dshb-tab-active' : '')} onClick={() => setTab('balance')}>{t('tabBalance')}</button>
+            <button type="button" className={'dshb-tab' + (tab === 'cost' ? ' dshb-tab-active' : '')} onClick={() => setTab('cost')}>{t('tabCost')}</button>
+            <button type="button" className={'dshb-tab' + (tab === 'prices' ? ' dshb-tab-active' : '')} onClick={() => setTab('prices')}>{t('tabPrices')}</button>
+          </div>
           <div className="dshb-head-ops">
             {/* 定时更新：位于刷新按钮左侧 */}
             <button type="button" className="dshb-btn dshb-btn-small" onClick={openTimingDialog}>
@@ -714,13 +720,12 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
             <button type="button" className="dshb-close" aria-label={t('close')} onClick={close}>✕</button>
           </div>
         </div>
-        <div className="dshb-tabs">
-          <button type="button" className={'dshb-tab' + (tab === 'balance' ? ' dshb-tab-active' : '')} onClick={() => setTab('balance')}>{t('tabBalance')}</button>
-          <button type="button" className={'dshb-tab' + (tab === 'cost' ? ' dshb-tab-active' : '')} onClick={() => setTab('cost')}>{t('tabCost')}</button>
-          <button type="button" className={'dshb-tab' + (tab === 'prices' ? ' dshb-tab-active' : '')} onClick={() => setTab('prices')}>{t('tabPrices')}</button>
-        </div>
+        {/* 三个面板常驻并叠放在同一格（grid stacking）：隐藏面板仍参与布局，
+            弹框高度恒等于最高的【价格设置】页 → 该页不出现滚动、切换 tab 不跳动 */}
         <div className="dshb-modal-body">
-          {tab === 'balance' ? renderBalanceTab() : tab === 'cost' ? renderCostTab() : renderPricesTab()}
+          <div className={'dshb-pane' + (tab === 'balance' ? '' : ' dshb-pane-off')}>{renderBalanceTab()}</div>
+          <div className={'dshb-pane' + (tab === 'cost' ? '' : ' dshb-pane-off')}>{renderCostTab()}</div>
+          <div className={'dshb-pane' + (tab === 'prices' ? '' : ' dshb-pane-off')}>{renderPricesTab()}</div>
         </div>
       </div>
       {timingOpen

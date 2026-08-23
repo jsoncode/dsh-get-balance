@@ -32,16 +32,16 @@ shows a live "Session ≈xx CNY". UI copy is bilingual
 
 ### Cost tab — per-API-key breakdown
 
-- Four cards: **Last turn / This session / Today · this project / Today · all**,
-  each with the total billed amount + a compact token legend (input / cache read /
-  cache write / output, K/M/B/T/P-suffixed numbers) + a **cache hit rate** line.
-- **Per API key rows**: inside every card, each configured key (provider route)
-  gets its own row showing its own four-bucket token counts, an
-  official/non-official chip and its own cost.
+- One **table**: columns *token / category / input (miss) / input (cache hit) /
+  output / hit rate / est. cost*. Every API key is a group of four rows
+  (**Last question / This session / Today·project / Today·all**) with the token
+  cell merged across them (label + masked key + official/non-official chip);
+  a **Total** group comes first, key groups follow sorted by token volume.
+  Numbers are compact (K/M/B/T/P); hit rate = cache-hit ÷ all input-side tokens.
 - **Token usage is counted per key regardless of officialness**; **cost is only
   computed for official keys** (API domain `api.deepseek.com`) — non-official keys
   show a "not billed" chip instead of an amount. Multiple official keys (several
-  routes pointing at the official API) each get their own row and their own bill.
+  routes pointing at the official API) each get their own group and their own bill.
 - Official detection: the `provider` field of `request/context` events → that
   provider's baseURL in host settings → hostname equals `api.deepseek.com`
   (trailing slash / case normalized; lookalike domains such as

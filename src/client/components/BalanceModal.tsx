@@ -4,12 +4,13 @@
  * 所有余额相关的显示与设置都收敛在此弹框：
  * 1. 余额：DeepSeek 服务商列表（来源标签、脱敏 key、总/赠送余额），
  *    每行独立状态；底部「附加 API Key」管理不在 providers 配置中的 key；
- * 2. 费用：四卡片 —— 最近一次提问 / 本会话 / 今日·本项目 / 今日·全部，
- *    金额 + 四桶 token 明细 + 当前生效价格档；
+ * 2. 费用：表格 —— 行为 API Key（token 列合并四行）× 类别
+ *    （最近一次提问 / 本会话 / 今日·本项目 / 今日·全部），
+ *    列为 未命中输入 / 缓存命中输入 / 输出 / 命中率 / 预估费用，首组为合计；
  * 3. 价格设置：价格档行内编辑 + 增删。
  */
 
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { RunFn } from '../rpc.ts'
 import { fmtAmount, fmtTokens, LANG, t, tErr } from '../i18n.ts'
 
@@ -139,13 +140,21 @@ const METRIC_GROUPS: Array<{ labelKey: string; field: 'input' | 'cacheRead' | 'o
   { labelKey: 'priceOutput', field: 'output' },
 ]
 
-/** token 四桶明细的展示顺序：输入 / 缓存命中 / 缓存写入 / 输出。 */
-const TOKEN_SEGMENTS: Array<{ key: keyof BucketsView; labelKey: string }> = [
-  { key: 'uncachedInput', labelKey: 'tokensUncachedInput' },
-  { key: 'cacheRead', labelKey: 'tokensCacheRead' },
-  { key: 'cacheWrite', labelKey: 'tokensCacheWrite' },
-  { key: 'output', labelKey: 'tokensOutput' },
+/** 费用表格的四个统计类别（行）：最近一次提问 / 本会话 / 今日·本项目 / 今日·全部。 */
+const COST_ROWS: Array<{ labelKey: string; pick: (c: CostResultView) => CostEntryView | undefined }> = [
+  { labelKey: 'costLastTurn', pick: (c) => c.lastTurn },
+  { labelKey: 'costSession', pick: (c) => c.session },
+  { labelKey: 'costTodayProject', pick: (c) => c.todayProject },
+  { labelKey: 'costTodayAll', pick: (c) => c.todayAll },
 ]
+
+/** 全零四桶（某类别无该 Key 用量时展示用）。 */
+const ZERO_BUCKETS: BucketsView = { uncachedInput: 0, cacheRead: 0, cacheWrite: 0, output: 0 }
+
+/** 四桶 token 总数。 */
+function bucketsSum(b: BucketsView): number {
+  return b.uncachedInput + b.cacheRead + b.cacheWrite + b.output
+}
 
 /**
  * 缓存命中率（%）：缓存命中 token 占全部输入侧 token
@@ -495,83 +504,116 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
     return { label: provider }
   }
 
-  const costCard = (label: string, entry: CostEntryView | undefined) => {
-    const byKey: KeyCostEntryView[] = entry?.byKey ?? []
-    const total: BucketsView = entry?.buckets ?? { uncachedInput: 0, cacheRead: 0, cacheWrite: 0, output: 0 }
+  /** 某类别下某 API Key 的用量条目（无则 undefined）。 */
+  const keyEntryOf = (entry: CostEntryView | undefined, provider: string): KeyCostEntryView | undefined =>
+    entry?.byKey.find((k) => k.provider === provider)
+
+  /** 表格一行的数值单元格：分类 + 未命中输入 / 缓存命中输入 / 输出 / 命中率 / 预估费用。 */
+  const costRowCells = (catLabel: string, buckets: BucketsView, amount: ReactNode) => (
+    <>
+      <td className="dshb-cost-cat">{catLabel}</td>
+      <td className="dshb-cost-num">{fmtTokens(buckets.uncachedInput)}</td>
+      <td className="dshb-cost-num">{fmtTokens(buckets.cacheRead)}</td>
+      <td className="dshb-cost-num">{fmtTokens(buckets.output)}</td>
+      <td className="dshb-cost-num">{fmtRate(cacheHitRate(buckets))}</td>
+      <td className="dshb-cost-num dshb-cost-amount-cell">{amount}</td>
+    </>
+  )
+
+  const renderCostTab = () => {
+    if (cost === null) return <div className="dshb-spinner" />
+    // 全部出现过的 API Key（按四类 token 总和降序）。
+    const sums = new Map<string, number>()
+    for (const rowDef of COST_ROWS) {
+      for (const k of rowDef.pick(cost)?.byKey ?? []) {
+        sums.set(k.provider, (sums.get(k.provider) ?? 0) + bucketsSum(k.buckets))
+      }
+    }
+    const providerList = [...sums.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p)
     return (
-      <div className="dshb-cost-card">
-        <div className="dshb-cost-label">{label}</div>
-        {entry === undefined
-          ? <div className="dshb-spinner" />
-          : (
-            <>
-              <div className="dshb-cost-amount">
-                {fmtAmount(entry.amount)}
-                <span className="dshb-cost-currency">{entry.currency}</span>
-              </div>
-
-              {/* ── 合计：全部 API Key 的 token 四桶明细（不区分官方与否）+ 缓存命中率 ── */}
-              <div className="dshb-tokens-legend">
-                {TOKEN_SEGMENTS.map((seg) => (
-                  <span key={seg.key}>
-                    <span className="dshb-tokens-name">{t(seg.labelKey)}</span>
-                    <b>{fmtTokens(total[seg.key])}</b>
-                  </span>
-                ))}
-                <span className="dshb-hitrate-row">
-                  <span className="dshb-tokens-name">{t('hitRate')}</span>
-                  <b>{fmtRate(cacheHitRate(total))}</b>
-                </span>
-              </div>
-
-              {/* ── 按 API Key 分行：token 各自统计；费用仅官方 Key（api.deepseek.com）计算 ── */}
-              {byKey.length > 0
-                ? (
-                  <div className="dshb-key-cost-list">
-                    <div className="dshb-nonofficial-title">{t('costByKeyTitle')}</div>
-                    {byKey.map((k) => {
-                      const meta = providerMeta(k.provider)
-                      return (
-                        <div className="dshb-key-cost" key={k.provider}>
-                          <div className="dshb-key-cost-head">
-                            <span className="dshb-key-cost-name" title={k.provider}>{meta.label}</span>
-                            {meta.masked !== undefined ? <span className="dshb-key-cost-mask">{meta.masked}</span> : null}
-                            <span className={'dshb-chip' + (k.official ? ' dshb-chip-brand' : '')}>
-                              {k.official ? t('chipOfficial') : t('chipNonOfficial')}
-                            </span>
-                            {k.official
-                              ? <span className="dshb-key-cost-amount">≈{fmtAmount(k.amount)} {k.currency}</span>
-                              : <span className="dshb-chip">{t('notBilled')}</span>}
-                          </div>
-                          <div className="dshb-key-cost-counts">
-                            {TOKEN_SEGMENTS.map((seg) => t(seg.labelKey) + ' ' + fmtTokens(k.buckets[seg.key])).join(' · ')}
-                          </div>
-                        </div>
+      <div>
+        <p className="dshb-hint">{t('costHint')}</p>
+        <div className="dshb-price-scroll">
+          <table className="dshb-table dshb-cost-table">
+            <thead>
+              <tr>
+                <th>{t('costColToken')}</th>
+                <th>{t('costColCategory')}</th>
+                <th className="dshb-cost-num">{t('costColUncached')}</th>
+                <th className="dshb-cost-num">{t('costColCacheRead')}</th>
+                <th className="dshb-cost-num">{t('tokensOutput')}</th>
+                <th className="dshb-cost-num">{t('hitRate')}</th>
+                <th className="dshb-cost-num">{t('costEstAmount')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* 合计组：四个类别的全量汇总（token 列同样合并四行） */}
+              {COST_ROWS.map((rowDef, ri) => {
+                const entry = rowDef.pick(cost)
+                return (
+                  <tr key={'total-' + rowDef.labelKey} className="dshb-cost-total">
+                    {ri === 0
+                      ? (
+                        <td className="dshb-cost-key" rowSpan={COST_ROWS.length}>
+                          <div className="dshb-cost-key-name">{t('costTotal')}</div>
+                        </td>
                       )
-                    })}
-                  </div>
+                      : null}
+                    {costRowCells(
+                      t(rowDef.labelKey),
+                      entry?.buckets ?? ZERO_BUCKETS,
+                      entry !== undefined ? '≈' + fmtAmount(entry.amount) + ' ' + entry.currency : '—',
+                    )}
+                  </tr>
                 )
-                : null}
-            </>
-          )}
+              })}
+              {/* 每个 API Key 一组：token 列合并四行，费用仅官方 Key 计算 */}
+              {providerList.map((p) => {
+                const meta = providerMeta(p)
+                const official = COST_ROWS.some((rowDef) => keyEntryOf(rowDef.pick(cost), p)?.official === true)
+                return COST_ROWS.map((rowDef, ri) => {
+                  const kc = keyEntryOf(rowDef.pick(cost), p)
+                  const amount = kc === undefined
+                    ? '—'
+                    : kc.official
+                      ? '≈' + fmtAmount(kc.amount) + ' ' + kc.currency
+                      : <span className="dshb-chip">{t('notBilled')}</span>
+                  return (
+                    <tr key={p + '-' + rowDef.labelKey}>
+                      {ri === 0
+                        ? (
+                          /* 第一列以 token（脱敏 key）为主体：key 大字在前，名称为辅 */
+                          <td className="dshb-cost-key" rowSpan={COST_ROWS.length}>
+                            {meta.masked !== undefined
+                              ? (
+                                <>
+                                  <div className="dshb-cost-key-token" title={p}>{meta.masked}</div>
+                                  <div className="dshb-cost-key-label">{meta.label}</div>
+                                </>
+                              )
+                              : <div className="dshb-cost-key-name" title={p}>{meta.label}</div>}
+                            <div className="dshb-cost-key-chip">
+                              <span className={'dshb-chip' + (official ? ' dshb-chip-brand' : '')}>
+                                {official ? t('chipOfficial') : t('chipNonOfficial')}
+                              </span>
+                            </div>
+                          </td>
+                        )
+                        : null}
+                      {costRowCells(t(rowDef.labelKey), kc?.buckets ?? ZERO_BUCKETS, amount)}
+                    </tr>
+                  )
+                })
+              })}
+            </tbody>
+          </table>
+        </div>
+        {cost.sessionTier !== undefined
+          ? <div className="dshb-cost-tier">{t('costTier')}：<b>{cost.sessionTier}</b></div>
+          : null}
       </div>
     )
   }
-
-  const renderCostTab = () => (
-    <div>
-      <p className="dshb-hint">{t('costHint')}</p>
-      <div className="dshb-cost-grid">
-        {costCard(t('costLastTurn'), cost?.lastTurn)}
-        {costCard(t('costSession'), cost?.session)}
-        {costCard(t('costTodayProject'), cost?.todayProject)}
-        {costCard(t('costTodayAll'), cost?.todayAll)}
-      </div>
-      {cost?.sessionTier !== undefined
-        ? <div className="dshb-cost-tier">{t('costTier')}：<b>{cost.sessionTier}</b></div>
-        : null}
-    </div>
-  )
 
   const renderPricesTab = () => (
     <div>
@@ -687,11 +729,6 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
             </div>
           </div>
         )}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-        <button type="button" className="dshb-btn dshb-btn-small dshb-btn-primary" disabled={prices === null}
-          onClick={() => { if (prices !== null) void savePrices(prices) }}>{t('save')}</button>
-      </div>
-      {priceMsg !== '' ? <p className={'dshb-' + (priceMsg === t('pricesSaved') ? 'ok' : 'err')}>{priceMsg}</p> : null}
     </div>
   )
 
@@ -711,11 +748,12 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
             <button type="button" className="dshb-btn dshb-btn-small" onClick={openTimingDialog}>
               {t('timingBtn')}{autoSeconds > 0 ? '·' + autoSeconds + 's' : ''}
             </button>
+            {/* 刷新：文案恒定不切换「加载中…」，避免按钮宽度抖动；加载中仅禁用 */}
             {tab === 'balance'
-              ? <button type="button" className="dshb-btn dshb-btn-small" disabled={balLoading} onClick={() => void loadBalances(true)}>{balLoading ? t('loading') : t('refreshAll')}</button>
+              ? <button type="button" className="dshb-btn dshb-btn-small" disabled={balLoading} onClick={() => void loadBalances(true)}>{t('refresh')}</button>
               : null}
             {tab === 'cost'
-              ? <button type="button" className="dshb-btn dshb-btn-small" disabled={costLoading} onClick={() => void loadCost()}>{costLoading ? t('loading') : t('refresh')}</button>
+              ? <button type="button" className="dshb-btn dshb-btn-small" disabled={costLoading} onClick={() => void loadCost()}>{t('refresh')}</button>
               : null}
             <button type="button" className="dshb-close" aria-label={t('close')} onClick={close}>✕</button>
           </div>
@@ -727,6 +765,18 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
           <div className={'dshb-pane' + (tab === 'cost' ? '' : ' dshb-pane-off')}>{renderCostTab()}</div>
           <div className={'dshb-pane' + (tab === 'prices' ? '' : ' dshb-pane-off')}>{renderPricesTab()}</div>
         </div>
+        {/* 底部操作区：置底显示，不随内容滚动（当前承载价格设置的保存动作） */}
+        {tab === 'prices'
+          ? (
+            <div className="dshb-modal-footer">
+              {priceMsg !== ''
+                ? <p className={'dshb-msg ' + (priceMsg === t('pricesSaved') ? 'dshb-ok' : 'dshb-err')}>{priceMsg}</p>
+                : null}
+              <button type="button" className="dshb-btn dshb-btn-small dshb-btn-primary" disabled={prices === null}
+                onClick={() => { if (prices !== null) void savePrices(prices) }}>{t('save')}</button>
+            </div>
+          )
+          : null}
       </div>
       {timingOpen
         ? (

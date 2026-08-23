@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { t } from '../i18n.ts'
-import { BALANCE_LOGO } from '../logo.ts'
+import { BALANCE_LOGO_PNG } from '../logo.ts'
 import type { RunFn } from '../rpc.ts'
 
 interface PeakWindowView {
@@ -152,7 +152,7 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
         aria-label={fullLabel}
         onClick={onOpen}
       >
-        <img src={BALANCE_LOGO} alt="" className="dshb-footer-logo" />
+        <img src={BALANCE_LOGO_PNG} alt="" className="dshb-footer-logo" />
         {wide
           ? (
             <span className="dshb-footer-label">

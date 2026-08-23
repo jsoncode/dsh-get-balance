@@ -15,6 +15,8 @@
  */
 
 import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from 'node:http'
+import { readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import Schema from '@deepseek-ai/schemastery'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { Context } from '@deepseek-ai/cordis'
@@ -156,6 +158,47 @@ export function apply(ctx: Context, _config: Record<string, never>) {
         },
       })
     } catch { /* 热重载重复注册（kind,path 冲突）时幂等忽略 */ }
+
+    // ─── 浏览器图标静态资源（/plugins/<id>/assets/...）──────────────
+    // 宿主只通过 /plugins/<id>/client.js（及 .map）发布插件 bundle，不会把
+    // 插件包内的其它文件暴露给浏览器。footer 按钮图标因此由本路由按包内
+    // assets 原文件提供，浏览器半边以同源绝对路径引用该 PNG。
+    // 包内文件缺失时 404（仅首次记一条警告），重复注册时幂等忽略。
+    const iconRoute = '/plugins/dsh-get-balance/assets/wallet-money-duotone-128x128.png'
+    const iconPath = fileURLToPath(new URL('../assets/wallet-money-duotone-128x128.png', import.meta.url))
+    let iconCache: Buffer | null = null
+    let iconWarned = false
+    try {
+      webServer.register({
+        kind: 'exact',
+        path: iconRoute,
+        handler: async (req, res) => {
+          if (req.method !== 'GET' && req.method !== 'HEAD') {
+            res.writeHead(405)
+            res.end()
+            return
+          }
+          if (iconCache === null) {
+            try {
+              iconCache = await readFile(iconPath)
+            } catch (e) {
+              if (!iconWarned) {
+                iconWarned = true
+                console.warn(`[dsh-get-balance] footer icon missing: ${iconPath}`, e instanceof Error ? e.message : String(e))
+              }
+              res.writeHead(404)
+              res.end()
+              return
+            }
+          }
+          res.writeHead(200, {
+            'content-type': 'image/png',
+            'cache-control': 'no-cache',
+          })
+          res.end(req.method === 'HEAD' ? undefined : iconCache)
+        },
+      })
+    } catch { /* 热重载重复注册时幂等忽略 */ }
   }
 
   // ─── 命令入口（保留兼容：用户/模型在对话中显式执行时可用）──────

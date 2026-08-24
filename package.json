@@ -53,6 +53,8 @@
     "cordis.patch.yml",
     "assets/logo.svg",
     "assets/wallet-money-duotone-128x128.png",
+    "assets/preview",
+    "preview.md",
     "README.md",
     "README.zh-CN.md"
   ],

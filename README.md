@@ -1,13 +1,15 @@
 # dsh-get-balance
 
-A DeepSeek Harness plugin (dual-face: host + browser) for watching your DeepSeek
-account **balance** and estimating **token-based costs**, with prices configured
-per **model × peak/off-peak period** online. Everything lives in a unified modal
-(opened from the sidebar-footer **Balance** button); a **session-header** button
-shows a live "Session ≈xx CNY". UI copy is bilingual
-(Chinese / English, following the host UI language).
+A balance & cost plugin for DeepSeek Harness:
 
-[中文文档](README.zh-CN.md)
+- **Multi-account balance** — enumerates every DeepSeek provider (pi-ai routes / official route / extra keys), folds the same account into one row, and shows every account balance at a glance;
+- **Real-time stats** — live per-session token usage and cost estimation, with online-editable price tiers (model × peak/off-peak);
+- **Bilingual UI** — copy follows the host language (中文 / English);
+- **Friendly & simple** — one unified modal (Balance / Cost / Prices) plus a sidebar entry and a live session-header button; intuitive and ready to use.
+
+![dsh-get-balance](assets/preview/1.png)
+
+[中文文档](README.zh-CN.md) · [Screenshots](preview.md)
 
 ## Features
 
@@ -158,22 +160,14 @@ shows a live "Session ≈xx CNY". UI copy is bilingual
 ## Install
 
 ```sh
-# local development
-dsh plugin --profile web add ./dsh-get-balance
-
 # published: npm / tarball / GitHub
 dsh plugin --profile web add dsh-get-balance
 dsh plugin --profile web add ./dsh-get-balance-0.1.0.tgz
 dsh plugin --profile web add github:you/dsh-get-balance#<sha>
 
 dsh --profile web --dump-config   # inspect the plugin layer
-dsh --profile web                 # start (host-half changes need a restart)
+dsh --profile web                 # start
 ```
-
-> **Local dev deps**: the host loads `index.js` as native Node ESM, so
-> `@deepseek-ai/schemastery`, `@deepseek-ai/dsh-tools`,
-> `@deepseek-ai/dsh-settings`, `@deepseek-ai/dsh-home-paths` must resolve from
-> the plugin directory (run `pnpm install` there; `node_modules` is gitignored).
 
 No static config required: extra keys, price config and the auto-refresh interval
 are edited in the modal and persisted to `$DSH_HOME/settings.yaml`.
@@ -211,6 +205,20 @@ pnpm run check         # full-tree TypeScript check (tsc -b)
 pnpm run build         # rebuild both bundles after source changes (tsc -b && tsdown)
 pnpm run verify        # validate lib/client.js against a simulated host seed
 ```
+
+Attach the local checkout to a dsh instance (from the plugin repo):
+
+```sh
+cd dsh-get-balance
+dsh plugin --profile web add ./
+```
+
+> The host loads `index.js` as native Node ESM, so
+> `@deepseek-ai/schemastery`, `@deepseek-ai/dsh-tools`,
+> `@deepseek-ai/dsh-settings`, `@deepseek-ai/dsh-home-paths` must resolve from
+> the plugin directory (run `pnpm install` there; `node_modules` is gitignored).
+> Host-half (`src/host/`) changes need a **dsh restart**; browser-half
+> (`src/client/`) changes apply on a **page refresh**.
 
 - Host half lives in `src/host/`; browser half in `src/client/`;
 - The `window.__ModuleLoader__.load` factory wrap of `lib/client.js` is generated

@@ -1,11 +1,15 @@
 # dsh-get-balance
 
-DeepSeek Harness（dsh）双面插件（宿主 + 浏览器半边）：查看 DeepSeek 账户**余额**，
-按 token 用量估算**费用**，价格按**模型 × 高峰/空闲时段**在线配置。所有能力收敛在
-统一弹框中（侧边栏底部「余额」入口），另在**会话头部**提供实时
-「当前会话 ≈xx CNY」按钮。界面中英双语（跟随宿主 UI 语言）。
+DeepSeek Harness（dsh）余额与费用查询插件：
 
-[English](README.md)
+- **多账号查询**：一次枚举全部 DeepSeek 服务商（pi-ai 路由 / 官方路由 / 附加 Key），同一账号自动合并为一行，各账号余额一目了然；
+- **实时统计**：会话内 token 用量实时统计，按用量实时估算费用，价格档在线可配（模型 × 高峰/空闲时段）；
+- **中英双语**：界面文案自动跟随宿主语言；
+- **简单易用**：统一弹框（余额 / 费用 / 价格设置）+ 侧边栏入口 + 会话头部实时按钮，交互直观、开箱即用。
+
+![dsh-get-balance](assets/preview/1.png)
+
+[English](README.md) · [界面预览](preview.md)
 
 ## 功能总览
 
@@ -63,22 +67,14 @@ DeepSeek Harness（dsh）双面插件（宿主 + 浏览器半边）：查看 Dee
 ## 安装
 
 ```sh
-# 本地开发
-dsh plugin --profile web add ./dsh-get-balance
-
 # 已发布：npm / tarball / GitHub
 dsh plugin --profile web add dsh-get-balance
 dsh plugin --profile web add ./dsh-get-balance-0.1.0.tgz
 dsh plugin --profile web add github:you/dsh-get-balance#<sha>
 
 dsh --profile web --dump-config   # 检查插件层
-dsh --profile web                 # 启动（宿主半边改动需重启）
+dsh --profile web                 # 启动
 ```
-
-> **本地开发依赖**：宿主以原生 Node ESM 加载 `index.js`，因此
-> `@deepseek-ai/schemastery`、`@deepseek-ai/dsh-tools`、
-> `@deepseek-ai/dsh-settings`、`@deepseek-ai/dsh-home-paths` 必须可从插件目录
-> 解析（`node_modules` 已被 gitignore）。在插件目录内执行 `pnpm install` 即可。
 
 插件无需静态配置；附加 key、价格档与定时间隔均在弹框内编辑并持久化到
 `$DSH_HOME/settings.yaml`。
@@ -115,6 +111,19 @@ pnpm run check         # 全树 TypeScript 类型检查（tsc -b）
 pnpm run build         # 改完源码后重建双面产物（tsc -b && tsdown）
 pnpm run verify        # 模拟宿主 seed 表校验 lib/client.js 可加载
 ```
+
+本地接入 dsh 实例（插件仓库目录）：
+
+```sh
+cd dsh-get-balance
+dsh plugin --profile web add ./
+```
+
+> 宿主以原生 Node ESM 加载 `index.js`，因此 `@deepseek-ai/schemastery`、
+> `@deepseek-ai/dsh-tools`、`@deepseek-ai/dsh-settings`、
+> `@deepseek-ai/dsh-home-paths` 必须可从插件目录解析（`node_modules` 已被
+> gitignore），在插件目录内执行 `pnpm install` 即可。宿主半边（`src/host/`）
+> 改动需**重启 dsh** 生效；浏览器半边（`src/client/`）改动**刷新页面**即可。
 
 - 宿主半边位于 `src/host/`；浏览器半边位于 `src/client/`；
 - `lib/client.js` 的 `window.__ModuleLoader__.load` 工厂包装由 tsdown 的

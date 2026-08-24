@@ -4,8 +4,9 @@
  * 预估费用（≈ 在前、货币符号 ¥ 在后，与金额同绿）。文案空格固定为
  * 「前缀 1.87M | ≈¥0.2935」（前缀与 token 之间一个空格、| 两侧空格）。
  * 点击按钮立即刷新一次；启用「定时更新」后按设定间隔自动刷新。
- * 会话可能中途切换 provider：按钮展示的是**合并统计结果**，点击弹出气泡
- * 弹框，逐 provider 列出当前会话统计（`ds-self 268K | ≈¥0.41`）。
+ * 会话可能中途切换 provider：按钮展示的是**合并统计结果**，**悬停**按钮
+ * 弹出气泡弹框，逐 provider 列出当前会话统计（`ds-self 268K | ≈¥0.41`），
+ * 鼠标移出按钮/气泡区域后自动收起。
  * 额外监听宿主会话快照（会话级插槽标准套件 useSession 注入）：每次 AI 请求
  * 完成（assistant/message 事件落盘，快照中新增一个更高 seq 的 assistant 节点）
  * 即重算 token 与预估费用 —— 不是流式逐 token 更新，而是每次请求完成更新一次
@@ -190,19 +191,43 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
   const amountText = amount === null ? '--' : fmtAmount(amount)
   const title = t('headerBtnPrefix') + ' ' + tokensText + ' | ≈¥' + amountText
 
-  // 点击：刷新一次 + 切换逐 provider 气泡弹框（fixed 锚定按钮下缘）。
-  const togglePopover = (): void => {
+  // 悬停交互：鼠标进入按钮/气泡区域即展开逐 provider 明细（fixed 锚定按钮下缘），
+  // 离开后延迟 150ms 收起 —— 短暂延迟桥接按钮与气泡之间的空隙，
+  // 指针跨空隙或移入气泡时 openPopover 会取消待执行的关闭，气泡不闪断。
+  const hoverRef = useRef(false)
+  const closeTimerRef = useRef<number | null>(null)
+  const clearCloseTimer = (): void => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+  }
+  const openPopover = (): void => {
+    hoverRef.current = true
+    clearCloseTimer()
     void refresh()
     const el = btnRef.current
     if (el) {
       const r = el.getBoundingClientRect()
       setPopoverPos({ top: r.bottom + 6, left: Math.max(8, r.right - 260) })
     }
-    setPopoverOpen((o) => !o)
+    setPopoverOpen(true)
   }
+  const scheduleClose = (): void => {
+    hoverRef.current = false
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null
+      if (!hoverRef.current) setPopoverOpen(false)
+    }, 150)
+  }
+  // 卸载时清理悬停关闭定时器。
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
+  }, [])
 
   return (
-    <>
+    <span className="dshb-header-wrap" onMouseEnter={openPopover} onMouseLeave={scheduleClose}>
       <button
         ref={btnRef}
         type="button"
@@ -210,7 +235,7 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
         title={title}
         aria-label={title}
         aria-expanded={popoverOpen}
-        onClick={togglePopover}
+        onClick={() => void refresh()}
       >
         <span>{t('headerBtnPrefix')}</span>
         {' '}
@@ -219,27 +244,23 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
         <span className="dshb-header-amount">≈¥<NumberRoller value={amount} format={fmtAmount} fallback="--" className="dshb-header-amount-num" /></span>
       </button>
       {popoverOpen ? (
-        <>
-          {/* 点击外部关闭的透明遮罩 */}
-          <div className="dshb-header-bd-backdrop" onClick={() => setPopoverOpen(false)} />
-          <div className="dshb-header-bd" role="dialog" aria-label={t('headerBreakdownTitle')}
-            style={popoverPos !== null ? { top: popoverPos.top, left: popoverPos.left } : undefined}>
-            <div className="dshb-header-bd-title">{t('headerBreakdownTitle')}</div>
-            {byKey === null || byKey.length === 0
-              ? <div className="dshb-header-bd-empty">—</div>
-              : byKey.map((k) => (
-                <div className="dshb-header-bd-row" key={k.provider}>
-                  <span className="dshb-header-bd-name" title={k.provider}>{labelOf(k.provider)}</span>
-                  <span className="dshb-header-bd-tokens">{fmtTokens(totalTokensOf(k.buckets))}</span>
-                  <span className="dshb-header-bd-sep">|</span>
-                  {k.official
-                    ? <span className="dshb-header-bd-amount">≈{currencySymbol(k.currency)}{fmtAmount(k.amount)}</span>
-                    : <span className="dshb-header-bd-amount dshb-header-bd-nobill">{t('notBilled')}</span>}
-                </div>
-              ))}
-          </div>
-        </>
+        <div className="dshb-header-bd" role="dialog" aria-label={t('headerBreakdownTitle')}
+          style={popoverPos !== null ? { top: popoverPos.top, left: popoverPos.left } : undefined}>
+          <div className="dshb-header-bd-title">{t('headerBreakdownTitle')}</div>
+          {byKey === null || byKey.length === 0
+            ? <div className="dshb-header-bd-empty">—</div>
+            : byKey.map((k) => (
+              <div className="dshb-header-bd-row" key={k.provider}>
+                <span className="dshb-header-bd-name" title={k.provider}>{labelOf(k.provider)}</span>
+                <span className="dshb-header-bd-tokens">{fmtTokens(totalTokensOf(k.buckets))}</span>
+                <span className="dshb-header-bd-sep">|</span>
+                {k.official
+                  ? <span className="dshb-header-bd-amount">≈{currencySymbol(k.currency)}{fmtAmount(k.amount)}</span>
+                  : <span className="dshb-header-bd-amount dshb-header-bd-nobill">{t('notBilled')}</span>}
+              </div>
+            ))}
+        </div>
       ) : null}
-    </>
+    </span>
   )
 }

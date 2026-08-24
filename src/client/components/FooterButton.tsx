@@ -3,8 +3,10 @@
  * 常驻的「余额」按钮（footer.action 区），点击打开统一弹框
  * （余额 / 费用 / 价格设置 三个 tab）。
  *
- * 右侧文案横排显示：「余额 ¥110.00 · 时段小圆点」——余额靠右对齐（货币符号前缀、
- * 数字绿色）；时段文案收敛为小圆点（高峰红 / 空闲绿），悬停使用宿主的
+ * 右侧文案横排显示：「余额 ￥110.00 | ￥99.50 · 时段小圆点」——余额靠右对齐
+ * （货币符号前缀、数字绿色），**每个服务商（账号）一段**，以 | 分隔；
+ * 取不到余额的账号（未配置 key / 查询失败）以**红色 --** 占位（悬停显示原因）。
+ * 时段文案收敛为小圆点（高峰红 / 空闲绿），悬停使用宿主的
  * Tooltip（@deepseek-ai/dsh-client-ui-primitives，运行时从宿主 seed 表解析）
  * 气泡提示完整信息「当前为高峰时段 全价计费」/「当前为空闲时段 半价计费」，
  * 其中价词着色（高峰「全价」红 / 空闲「半价」绿，与圆点同色）。
@@ -12,9 +14,9 @@
  * 每 60 秒刷新；弹框内保存价格成功或关闭弹框后立即刷新。
  */
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import { t } from '../i18n.ts'
+import { currencySymbol, t, tErr } from '../i18n.ts'
 import { NumberRoller } from './NumberRoller.tsx'
 import { BALANCE_LOGO_PNG } from '../logo.ts'
 import type { RunFn } from '../rpc.ts'
@@ -38,7 +40,18 @@ interface BalanceInfoView {
 interface BalanceEntryView {
   providerId: string
   ok: boolean
+  code?: string
+  error?: string
   balance_infos?: BalanceInfoView[]
+}
+
+/** 余额栏的一个分段：一个服务商（账号）的余额，或「未取到」的占位。 */
+interface BalanceSegment {
+  ok: boolean
+  total: string
+  currency: string
+  code?: string
+  error?: string
 }
 
 /** 解析 'HH:MM' 为当日分钟数；非法返回 undefined（与宿主 cost.ts 同规则）。 */
@@ -73,29 +86,6 @@ function isPeakNow(config: PriceConfigView, nowMs: number): boolean {
     }
   }
   return false
-}
-
-/** 常见货币代码 → 符号（余额前缀展示）；未收录的代码回退为代码本身（无代码时为空）。 */
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  CNY: '¥',
-  USD: '$',
-  EUR: '€',
-  GBP: '£',
-  JPY: '¥',
-  HKD: 'HK$',
-  KRW: '₩',
-  INR: '₹',
-  RUB: '₽',
-  AUD: 'A$',
-  CAD: 'C$',
-  SGD: 'S$',
-  CHF: 'Fr.',
-  TWD: 'NT$',
-}
-
-function currencySymbol(code: string): string {
-  const c = (code || '').trim().toUpperCase()
-  return c !== '' ? (CURRENCY_SYMBOLS[c] ?? c) : ''
 }
 
 /** 时段气泡纯文本（aria-label / 窄栏按钮 title 用）：{price} 占位替换为价词文本。 */
@@ -148,7 +138,8 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
   const priceTick = usePriceTick?.() ?? 0
   const balanceTick = useBalanceTick?.() ?? 0
   const [peak, setPeak] = useState<boolean | null>(null)
-  const [bal, setBal] = useState<{ total: string; currency: string } | null>(null)
+  // 每个服务商（账号）一段；null = 尚未取到（不渲染），[] = 无服务商（不渲染）。
+  const [bals, setBals] = useState<BalanceSegment[] | null>(null)
 
   const refresh = useCallback(async (forceBalance = false) => {
     try {
@@ -163,11 +154,20 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
       // 官方请求完成触发的刷新 forceBalance=true 绕过缓存拿到最新余额。
       const res = await run('', { op: 'balance', refresh: forceBalance })
       const balances = res.balances as BalanceEntryView[] | undefined
-      const first = Array.isArray(balances)
-        ? balances.find((b) => b.ok === true && Array.isArray(b.balance_infos) && b.balance_infos.length > 0)
-        : undefined
-      const info = first?.balance_infos?.[0]
-      if (info !== undefined) setBal({ total: info.total_balance, currency: info.currency })
+      if (Array.isArray(balances)) {
+        // 顺序与宿主服务商（账号）列表一致：每个条目一段；
+        // 取不到余额（无 key 配置 / 查询失败）的条目以红色 -- 占位。
+        setBals(balances.map((b) => {
+          const info = b.ok === true ? b.balance_infos?.[0] : undefined
+          return {
+            ok: b.ok === true && info !== undefined,
+            total: info?.total_balance ?? '',
+            currency: info?.currency ?? '',
+            code: b.code,
+            error: b.error,
+          }
+        }))
+      }
     } catch {
       // 余额查询失败时保持上一次状态。
     }
@@ -208,17 +208,11 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
         </span>
       </Tooltip>
     )
-  const curSym = bal === null ? '' : currencySymbol(bal.currency)
-  const balText = bal === null ? '' : curSym + bal.total
+  // 多账号文案：每个服务商（账号）一段，| 分隔；取不到余额的分段以 -- 占位。
+  const balText = bals === null || bals.length === 0
+    ? ''
+    : bals.map((seg) => seg.ok ? currencySymbol(seg.currency) + seg.total : '--').join(' | ')
   const fullLabel = t('balanceBtn') + (balText !== '' ? ' ' + balText : '') + (periodTip !== '' ? ' ' + periodTip : '')
-
-  // 余额数字「上下轮播」动画：值变化时逐位滚动到新值（2 位小数）。
-  const balValue = bal === null
-    ? null
-    : (() => {
-      const n = parseFloat(bal.total)
-      return Number.isFinite(n) ? n : null
-    })()
 
   return (
     <div className={'dshb-footer-group' + (wide ? '' : ' dshb-footer-rail-group')}>
@@ -236,10 +230,27 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
           ? (
             <span className="dshb-footer-label">
               {periodGroup}
-              {bal !== null ? (
+              {bals !== null && bals.length > 0 ? (
                 <span className="dshb-footer-balance">
-                  {curSym !== '' ? <span className="dshb-footer-cur">{curSym}</span> : null}
-                  <NumberRoller value={balValue} format={(v) => v.toFixed(2)} fallback="--" className="dshb-footer-balance-num" />
+                  {bals.map((seg, i) => (
+                    <Fragment key={i}>
+                      {i > 0 ? <span className="dshb-footer-balance-sep" aria-hidden="true">|</span> : null}
+                      {seg.ok
+                        ? (() => {
+                          const sym = currencySymbol(seg.currency)
+                          const n = parseFloat(seg.total)
+                          return (
+                            <span className="dshb-footer-balance-seg">
+                              {sym !== '' ? <span className="dshb-footer-cur">{sym}</span> : null}
+                              <NumberRoller value={Number.isFinite(n) ? n : null} format={(v) => v.toFixed(2)} fallback="--" className="dshb-footer-balance-num" />
+                            </span>
+                          )
+                        })()
+                        : (
+                          <span className="dshb-footer-balance-seg dshb-footer-balance-err" title={tErr({ code: seg.code, error: seg.error }, t('noCredential'))}>--</span>
+                        )}
+                    </Fragment>
+                  ))}
                 </span>
               ) : null}
             </span>

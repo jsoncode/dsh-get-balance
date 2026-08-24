@@ -412,12 +412,13 @@ function lastCompletedSample(samples: Map<string, StepSample>): StepSample | und
 /**
  * 对一组样本按 API key（provider）分组统计：全部 token 分别累计（不区分官方与否）；
  * 官方 key（api.deepseek.com）额外按模型 × 时段计费，非官方金额恒为 0。
+ * 每个样本都用「它自己所属的模型」（request/context 追踪）匹配价格档，
+ * 多 provider / 多模型切换的会话不会串档。
  */
 function priceSamples(
   samples: Iterable<StepSample>,
   prices: readonly PriceTier[],
   config: PriceConfig,
-  modelOnly: string | undefined,
   providerBaseUrls: Record<string, string>,
 ): { byKey: KeyCostEntry[] } {
   const groups = new Map<string, { buckets: UsageBuckets; official: boolean; amount: number; currency: string }>()
@@ -431,8 +432,7 @@ function priceSamples(
     }
     addBuckets(group.buckets, sample.buckets)
     if (group.official) {
-      const model = modelOnly !== undefined ? modelOnly : sample.model
-      const tier = matchTier(model, prices)
+      const tier = matchTier(sample.model, prices)
       if (tier !== undefined) group.currency = tier.currency
       group.amount += costOf(sample.buckets, tier === undefined ? undefined : periodPricesOf(tier, sample.time ?? Date.now(), config))
     }
@@ -467,13 +467,12 @@ export async function computeCosts(
   for (const sample of samples.values()) {
     if (sample.model !== undefined) sessionModel = sample.model
   }
-  const sessionPriced = priceSamples(samples.values(), config.tiers, config, undefined, providerBaseUrls)
+  const sessionPriced = priceSamples(samples.values(), config.tiers, config, providerBaseUrls)
   const lastTurnPriced = maxTurn >= 0
     ? priceSamples(
       [...samples.values()].filter((s) => s.turn === maxTurn),
       config.tiers,
       config,
-      sessionModel,
       providerBaseUrls,
     )
     : { byKey: [] as KeyCostEntry[] }

@@ -48,11 +48,15 @@ export declare function resolveApiKey(credentials: CredentialsService | undefine
 export declare function listProviderBaseUrls(settings: SettingsService | undefined, nsOf: (name: string) => unknown): Record<string, string>;
 /**
  * 枚举全部 DeepSeek 服务商条目（含 key 解析）。
+ *
+ * 解析到同一 API key（同一账号）的多个路由折叠为一行：保留首个条目并把其余
+ * 路由记入其 `sharedWith`（余额对每个唯一 key 只查询一次，同一账号不重复展示）。
+ *
  * @param settings - 宿主 settings 服务（可能缺失）。
  * @param nsOf - namespace 品牌化函数（settingsNamespace）。
  * @param credentials - 宿主 credentials 服务（可能缺失）。
  * @param extraKeys - 插件 settings 段的附加 key 列表。
- * @returns 去重后的服务商列表。
+ * @returns 按「解析 key 去重 + 路由去重」后的服务商列表。
  */
 export declare function listDeepseekProviders(settings: SettingsService | undefined, nsOf: (name: string) => unknown, credentials: CredentialsService | undefined, extraKeys: readonly ExtraKey[]): Promise<ProviderEntry[]>;
 //# sourceMappingURL=providers.d.ts.map

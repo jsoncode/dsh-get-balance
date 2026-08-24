@@ -11,6 +11,8 @@ export declare const tErr: (res: {
 } | null | undefined, fallback?: string) => string;
 /** 金额格式化（保留合理小数位）。 */
 export declare const fmtAmount: (amount: number | undefined) => string;
+/** 货币代码 → 展示符号（CNY → ¥；未收录回退代码本身；空代码返回空串）。 */
+export declare function currencySymbol(code: string): string;
 /** token 数量紧凑格式化：1234567 → 1.23M，减小长数字占位（最多 3 位有效数字）。 */
 export declare const fmtTokens: (n: number | undefined) => string;
 //# sourceMappingURL=i18n.d.ts.map

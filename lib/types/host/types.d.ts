@@ -63,6 +63,16 @@ export interface ExtraKey {
     label: string;
     apiKey: string;
 }
+/**
+ * 与主条目共享同一解析 API key 的另一条服务商路由。
+ * 同一 key = 同一 DeepSeek 账号：余额查询对每个唯一 key 只发起一次，
+ * 折叠路由以 sharedWith 标注在保留条目的行上。
+ */
+export interface ProviderShared {
+    id: string;
+    label: string;
+    source: ProviderEntry['source'];
+}
 /** 一个可查余额的 DeepSeek 服务商条目。 */
 export interface ProviderEntry {
     id: string;
@@ -79,6 +89,11 @@ export interface ProviderEntry {
     hasKey: boolean;
     /** 凭据来源层（env / file / project-env / user-env）；未配置时缺省。 */
     keySource?: string;
+    /**
+     * 与该条目解析到同一 API key（同一账号）而被折叠的路由。
+     * 仅宿主内部组装时设置；providers op 原样透出给浏览器（不含真实 key）。
+     */
+    sharedWith?: ProviderShared[];
 }
 /** 官方 /user/balance 的一个币种条目。 */
 export interface BalanceInfo {

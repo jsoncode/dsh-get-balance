@@ -20,6 +20,13 @@ shows a live "Session ≈xx CNY". UI copy is bilingual
 - Each API key row shows "**Today spend ≈xx CNY | Balance xx CNY**"
   (numbers green) — the key's own today cost (matched from the per-key cost
   stats by provider route, ≈0.00 when unused) plus its account balance.
+- **One row per account**: when several routes resolve to the *same* API key
+  (e.g. a pi-ai route named `deepseek` derives the credential ref
+  `DEEPSEEK_API_KEY`, colliding with the official `llm-deepseek` default),
+  they are folded into a single row — the row keeps its first entry and shows
+  a chip for every route sharing the key (tooltip: "shares API key with …").
+  The balance query runs once per distinct key, so the same account is never
+  displayed twice with different names.
 - For each provider the plugin resolves the configured `apiKeyEnv` via the host
   `credentials` service and calls the official
   `GET https://api.deepseek.com/user/balance` (proxied by the host — keys never
@@ -42,6 +49,16 @@ shows a live "Session ≈xx CNY". UI copy is bilingual
   computed for official keys** (API domain `api.deepseek.com`) — non-official keys
   show a "not billed" chip instead of an amount. Multiple official keys (several
   routes pointing at the official API) each get their own group and their own bill.
+- **Multi-provider sessions are strictly split per provider**: token stats and
+  cost estimates follow each request's own `request/context` provider, and each
+  group carries a source chip (pi-ai route / official route) plus the
+  official/non-official chip (alias routes are judged by baseURL hostname, so a
+  pi-ai route pointing at `api.deepseek.com` bills as official), so providers
+  never mix. The **Last question** entry prices every sample with its own model
+  (per-sample model from `request/context`), not a session-wide model.
+- **Aligned with the balance tab**: every configured provider is listed as a
+  group whether or not it has usage — providers without usage (or without a
+  credential) show zero tokens and a "—" amount.
 - Official detection: the `provider` field of `request/context` events → that
   provider's baseURL in host settings → hostname equals `api.deepseek.com`
   (trailing slash / case normalized; lookalike domains such as
@@ -82,16 +99,23 @@ shows a live "Session ≈xx CNY". UI copy is bilingual
   Only completions that hit the official DeepSeek API (api.deepseek.com) also
   force-refresh the footer balance (bypassing its 60s cache) — requests to
   non-official endpoints update tokens & cost only, without a balance query.
+- **Per-provider breakdown popover**: since a session may switch providers
+  mid-way, the button shows the **merged** totals; clicking opens a bubble
+  popover listing each provider's own stats
+  (`ds-self 268K | ≈¥0.41`, non-official rows show "not billed").
 
 ### Entry button (sidebar footer)
 
 - `sidebar.footer.action` **Balance** button: the label and a period dot on the
-  left, the amount right-aligned ("余额 ¥110.00") — currency symbol prefix, digits
-  in green and rolling vertically odometer-style on change. The period is a
+  left, the amounts right-aligned ("余额 ¥110.00 | ¥99.50") — currency symbol
+  prefix, digits in green and rolling vertically odometer-style on change.
+  **One segment per provider (account), separated by `|`**; an account whose
+  balance could not be fetched (no API key configured / query failed) shows a
+  **red `--`** placeholder (hover shows the reason). The period is a
   small dot (**red** for 高峰时段 / **green** for
   空闲时段 半价) whose hover tooltip shows the full info
   当前为高峰时段 全价计费 / 当前为空闲时段 半价计费 (全价 in red /
-  半价 in green); the amount comes from the balance API.
+  半价 in green); the amounts come from the balance API.
 
 ### Auto refresh
 

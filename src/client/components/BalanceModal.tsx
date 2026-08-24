@@ -25,6 +25,8 @@ interface ProviderView {
   apiKeyMasked?: string
   keySource?: string
   hasKey: boolean
+  /** 解析到同一 API key（同一账号）而被折叠到本行的其它路由。 */
+  sharedWith?: Array<{ id: string; label: string; source: ProviderView['source'] }>
 }
 
 interface BalanceInfoView {
@@ -131,6 +133,16 @@ const sourceChipKey: Record<ProviderView['source'], string> = {
   'llm-pi-ai': 'sourcePiAi',
   'llm-deepseek': 'sourceDeepseek',
   'extra': 'sourceExtra',
+}
+
+/**
+ * 会话事件中的 provider 路由是否命中某个（可能折叠的）服务商条目：
+ * 命中本行 id / label，或命中本行 sharedWith 中任一条目的 id / label。
+ * 折叠后（同一账号一行）费用统计仍能按任意共享路由匹配到该行。
+ */
+function providerMatches(p: ProviderView, route: string): boolean {
+  if (p.id === 'pi-ai:' + route || p.id === 'llm-deepseek:' + route || p.id === route || p.label === route) return true
+  return (p.sharedWith ?? []).some((s) => s.id === 'pi-ai:' + route || s.id === 'llm-deepseek:' + route || s.id === route || s.label === route)
 }
 
 /** 严格对齐官方价格表：仅三组指标（输入-缓存命中 / 输入-缓存未命中 / 输出）。 */
@@ -397,13 +409,12 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
 
   /**
    * 单个服务商条目（API key）的今日消耗：从 cost.todayAll.byKey 按
-   * 服务商路由匹配（pi-ai:<route> / llm-deepseek:<route> / label）。
+   * 服务商路由匹配（pi-ai:<route> / llm-deepseek:<route> / label / 共享路由）。
    * 无用量时返回 undefined，展示为 ≈0.00 CNY。
    */
   const todayCostOf = (p: ProviderView): KeyCostEntryView | undefined => {
     const list = cost?.todayAll?.byKey ?? []
-    return list.find((k) =>
-      'pi-ai:' + k.provider === p.id || 'llm-deepseek:' + k.provider === p.id || k.provider === p.id || k.provider === p.label)
+    return list.find((k) => providerMatches(p, k.provider))
   }
 
   const renderBalanceTab = () => (
@@ -423,6 +434,11 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
                       <div className="dshb-prov-name-row">
                         <span className="dshb-prov-name">{p.label}</span>
                         <span className={'dshb-chip' + (p.source === 'extra' ? ' dshb-chip-brand' : '')}>{t(sourceChipKey[p.source])}</span>
+                        {(p.sharedWith ?? []).map((s) => (
+                          <span key={s.id} className="dshb-chip" title={t('sharedAccountTitle', { n: s.label !== '' ? s.label : s.id })}>
+                            {t(sourceChipKey[s.source])}
+                          </span>
+                        ))}
                         {!p.hasKey
                           ? (
                             <span className="dshb-chip" title={p.keySource !== undefined ? 'source: ' + p.keySource : undefined}>
@@ -496,17 +512,37 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
     </div>
   )
 
-  /** 服务商路由 key → 展示信息（label + 脱敏 key）；用余额 tab 已加载的 providers 列表匹配。 */
-  const providerMeta = (provider: string): { label: string; masked?: string } => {
-    const hit = (providers ?? []).find((p) =>
-      p.id === 'pi-ai:' + provider || p.id === 'llm-deepseek:' + provider || p.id === provider || p.label === provider)
-    if (hit !== undefined) return { label: hit.label !== '' ? hit.label : provider, ...hit.apiKeyMasked !== undefined && hit.apiKeyMasked !== '' ? { masked: hit.apiKeyMasked } : {} }
+  /** 服务商路由 key → 展示信息（label + 脱敏 key + 来源）；用余额 tab 已加载的 providers 列表匹配（含折叠的共享路由）。 */
+  const providerMeta = (provider: string): { label: string; masked?: string; source?: ProviderView['source'] } => {
+    const hit = (providers ?? []).find((p) => providerMatches(p, provider))
+    if (hit !== undefined) {
+      return {
+        label: hit.label !== '' ? hit.label : provider,
+        ...hit.apiKeyMasked !== undefined && hit.apiKeyMasked !== '' ? { masked: hit.apiKeyMasked } : {},
+        source: hit.source,
+      }
+    }
     return { label: provider }
   }
 
   /** 某类别下某 API Key 的用量条目（无则 undefined）。 */
   const keyEntryOf = (entry: CostEntryView | undefined, provider: string): KeyCostEntryView | undefined =>
     entry?.byKey.find((k) => k.provider === provider)
+
+  /** 官方判定：优先按配置的 baseURL 域名（与宿主同规则，别名路由如 ds-self 也算官方）；
+   *  未在配置中的路由回退到用量分组的官方标志。 */
+  const officialOf = (route: string): boolean => {
+    const hit = (providers ?? []).find((p) => providerMatches(p, route))
+    if (hit !== undefined) {
+      try {
+        return new URL(hit.baseUrl).hostname.toLowerCase() === 'api.deepseek.com'
+      } catch {
+        return false
+      }
+    }
+    if (cost === null) return false
+    return COST_ROWS.some((rowDef) => keyEntryOf(rowDef.pick(cost), route)?.official === true)
+  }
 
   /** 表格一行的数值单元格：分类 + 未命中输入 / 缓存命中输入 / 输出 / 命中率 / 预估费用。 */
   const costRowCells = (catLabel: string, buckets: BucketsView, amount: ReactNode) => (
@@ -522,7 +558,7 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
 
   const renderCostTab = () => {
     if (cost === null) return <div className="dshb-spinner" />
-    // 全部出现过的 API Key（按四类 token 总和降序）。
+    // 1) 有用量的 API Key（按四类 token 总和降序）。
     const sums = new Map<string, number>()
     for (const rowDef of COST_ROWS) {
       for (const k of rowDef.pick(cost)?.byKey ?? []) {
@@ -530,6 +566,17 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
       }
     }
     const providerList = [...sums.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p)
+    // 2) 与余额 Tab 对齐：把全部已配置 provider 也列出（未用量者补在尾部，显示 0 用量）。
+    //    会话事件里的 provider 是路由 key（如 ds-self），与 providers 条目 id
+    //    （pi-ai:ds-self / llm-deepseek:deepseek-official）按前缀/名称匹配。
+    const listed = new Set(providerList)
+    for (const p of providers ?? []) {
+      const route = p.id.replace(/^(pi-ai|llm-deepseek|extra):/, '')
+      if (listed.has(route)) continue
+      if ([...listed].some((r) => providerMatches(p, r))) continue
+      listed.add(route)
+      providerList.push(route)
+    }
     return (
       <div>
         <p className="dshb-hint">{t('costHint')}</p>
@@ -570,7 +617,7 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
               {/* 每个 API Key 一组：token 列合并四行，费用仅官方 Key 计算 */}
               {providerList.map((p) => {
                 const meta = providerMeta(p)
-                const official = COST_ROWS.some((rowDef) => keyEntryOf(rowDef.pick(cost), p)?.official === true)
+                const official = officialOf(p)
                 return COST_ROWS.map((rowDef, ri) => {
                   const kc = keyEntryOf(rowDef.pick(cost), p)
                   const amount = kc === undefined
@@ -582,21 +629,17 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
                     <tr key={p + '-' + rowDef.labelKey}>
                       {ri === 0
                         ? (
-                          /* 第一列以 token（脱敏 key）为主体：key 大字在前，名称为辅 */
+                          /* 第一列：provider 名称 + 官方/非官方 tag 一行，脱敏 key 一行 */
                           <td className="dshb-cost-key" rowSpan={COST_ROWS.length}>
-                            {meta.masked !== undefined
-                              ? (
-                                <>
-                                  <div className="dshb-cost-key-token" title={p}>{meta.masked}</div>
-                                  <div className="dshb-cost-key-label">{meta.label}</div>
-                                </>
-                              )
-                              : <div className="dshb-cost-key-name" title={p}>{meta.label}</div>}
-                            <div className="dshb-cost-key-chip">
+                            <div className="dshb-cost-key-name-row">
+                              <span className="dshb-cost-key-name" title={p}>{meta.label}</span>
                               <span className={'dshb-chip' + (official ? ' dshb-chip-brand' : '')}>
                                 {official ? t('chipOfficial') : t('chipNonOfficial')}
                               </span>
                             </div>
+                            {meta.masked !== undefined
+                              ? <div className="dshb-cost-key-token" title={p}>{meta.masked}</div>
+                              : null}
                           </td>
                         )
                         : null}

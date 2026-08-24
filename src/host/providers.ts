@@ -108,11 +108,15 @@ export function listProviderBaseUrls(
 
 /**
  * 枚举全部 DeepSeek 服务商条目（含 key 解析）。
+ *
+ * 解析到同一 API key（同一账号）的多个路由折叠为一行：保留首个条目并把其余
+ * 路由记入其 `sharedWith`（余额对每个唯一 key 只查询一次，同一账号不重复展示）。
+ *
  * @param settings - 宿主 settings 服务（可能缺失）。
  * @param nsOf - namespace 品牌化函数（settingsNamespace）。
  * @param credentials - 宿主 credentials 服务（可能缺失）。
  * @param extraKeys - 插件 settings 段的附加 key 列表。
- * @returns 去重后的服务商列表。
+ * @returns 按「解析 key 去重 + 路由去重」后的服务商列表。
  */
 export async function listDeepseekProviders(
   settings: SettingsService | undefined,
@@ -183,5 +187,29 @@ export async function listDeepseekProviders(
     })
   }
 
-  return entries
+  // 同一账号折叠：不同路由解析到同一 API key 时，余额与脱敏 key 必然相同，
+  // 只保留首个条目，其余路由并入 sharedWith 标注（余额查询对每个唯一 key 一次）。
+  // 典型场景：pi-ai 路由名为 deepseek → 派生凭据引用 DEEPSEEK_API_KEY，
+  // 与官方 llm-deepseek 的默认引用（DEEPSEEK_API_KEY）指向同一账号。
+  const groups = new Map<string, ProviderEntry[]>()
+  for (const entry of entries) {
+    if (entry.apiKey !== undefined && entry.apiKey.length > 0) {
+      const group = groups.get(entry.apiKey)
+      if (group === undefined) groups.set(entry.apiKey, [entry])
+      else group.push(entry)
+    }
+  }
+  const folded = new Set<ProviderEntry>()
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue
+    const kept = group[0] as ProviderEntry
+    kept.sharedWith = group.slice(1).map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      source: entry.source,
+    }))
+    for (const entry of group.slice(1)) folded.add(entry)
+  }
+
+  return folded.size === 0 ? entries : entries.filter((entry) => !folded.has(entry))
 }

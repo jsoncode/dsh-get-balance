@@ -4,12 +4,12 @@ A balance & cost plugin for DeepSeek Harness:
 
 - **Multi-account balance** — enumerates every DeepSeek provider (pi-ai routes / official route / extra keys), folds the same account into one row, and shows every account balance at a glance;
 - **Real-time stats** — live per-session token usage and cost estimation, with online-editable price tiers (model × peak/off-peak);
-- **Bilingual UI** — copy follows the host language (中文 / English);
+- **Bilingual UI** — copy follows the host language (Simplified Chinese / English);
 - **Friendly & simple** — one unified modal (Balance / Cost / Prices) plus a sidebar entry and a live session-header button; intuitive and ready to use.
 
 ![dsh-get-balance](assets/preview/1.png)
 
-[中文文档](README.zh-CN.md) · [Screenshots](preview.md)
+[Simplified Chinese](README.zh-CN.md) · [Screenshots](preview.md)
 
 ## Features
 
@@ -73,13 +73,13 @@ A balance & cost plugin for DeepSeek Harness:
 ### Price settings tab — official pricing-table layout
 
 - Mirrors the official price table layout minus the category column:
-  `模型版本` (colspan=2) + one column per model; three metric groups (input
+  `Model version` (colspan=2) + one column per model; three metric groups (input
   cache-hit / cache-miss / output, each rowspan=2) + off-peak/peak rows;
   **only the price cells are input boxes** (peak red, off-peak green).
 - Each model has **peak and off-peak** sets of four prices (per million tokens:
   input / cache read / cache write / output, CNY).
 - **Periods are configurable**: peak windows (cross-midnight supported) + a
-  **timezone-offset slider** (UTC-12..+12, shown as 东八区 / 西五区 / 零时区)
+  **timezone-offset slider** (UTC-12..+12, shown as UTC±0 / UTC+8 / UTC-5)
   + a **"weekends half price" toggle** (Saturdays & Sundays excluded from peak
   windows and billed at off-peak rates all day).
   Official default: Beijing 9:00–12:00 & 14:00–18:00 are peak; off-peak = peak × 0.5.
@@ -109,19 +109,20 @@ A balance & cost plugin for DeepSeek Harness:
 ### Entry button (sidebar footer)
 
 - `sidebar.footer.action` **Balance** button: the label and a period dot on the
-  left, the amounts right-aligned ("余额 ¥110.00 | ¥99.50") — currency symbol
+  left, the amounts right-aligned ("Balance ¥110.00 | ¥99.50") — currency symbol
   prefix, digits in green and rolling vertically odometer-style on change.
   **One segment per provider (account), separated by `|`**; an account whose
   balance could not be fetched (no API key configured / query failed) shows a
   **red `--`** placeholder (hover shows the reason). The period is a
-  small dot (**red** for 高峰时段 / **green** for
-  空闲时段 半价) whose hover tooltip shows the full info
-  当前为高峰时段 全价计费 / 当前为空闲时段 半价计费 (全价 in red /
-  半价 in green); the amounts come from the balance API.
+  small dot (**red** for peak hours / **green** for
+  off-peak, half price) whose hover tooltip shows the full info
+  "Currently peak hours · full price billing" / "Currently off-peak hours · half
+  price billing" (full price in red / half price in green); the amounts come from
+  the balance API.
 
 ### Auto refresh
 
-- A **定时更新** button (left of the Refresh button in the modal header) opens a
+- An **Auto** button (left of the Refresh button in the modal header) opens a
   config dialog: set the interval (seconds) → Start/Stop. While running, the input
   and the Start button are disabled; stopping re-enables them.
 - At each interval, balance & cost refresh automatically (the modal when open, the
@@ -154,7 +155,7 @@ A balance & cost plugin for DeepSeek Harness:
 ├── cordis.patch.yml    # bundle patch
 ├── package.json        # dsh.bundle + dsh.client(web) manifests + peerDependencies
 ├── README.md           # this file (English, default)
-└── README.zh-CN.md     # 中文文档
+└── README.zh-CN.md     # Simplified Chinese docs
 ```
 
 ## Install

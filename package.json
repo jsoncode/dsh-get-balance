@@ -27,6 +27,7 @@
     "verify": "node scripts/verify-client.mjs",
     "verify:dedup": "tsx scripts/verify-dedup.ts",
     "verify:attribution": "tsx scripts/verify-cost-attribution.ts",
+    "verify:i18n": "tsx scripts/check-i18n.ts",
     "release": "npm run check && npm run build && npm run verify && npm version patch -m \"release: v%s\" && git push --follow-tags",
     "publish:npm": "npm run check && npm run build && npm run verify && npm publish --access public --auth-type=legacy"
   },

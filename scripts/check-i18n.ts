@@ -1,0 +1,16 @@
+import { readFileSync } from 'node:fs'
+const src = readFileSync('src/client/i18n.ts', 'utf8')
+const zhStart = src.indexOf('zh: {')
+const zhEnd = src.indexOf('  en: {')
+const enStart = src.indexOf('en: {')
+const enEnd = src.indexOf('const dict')
+const keys = (body: string): string[] => [...body.matchAll(/^\s{4}([A-Za-z0-9_]+):/gm)].map((m) => m[1] as string)
+const zh = new Set(keys(src.slice(zhStart, zhEnd)))
+const en = new Set(keys(src.slice(enStart, enEnd)))
+// cnNum 是 zh 独有中文数字表：en 侧经 zhNumeral 回退为阿拉伯数字，属预期差异。
+const onlyZh = [...zh].filter((k) => !en.has(k) && k !== 'cnNum')
+const onlyEn = [...en].filter((k) => !zh.has(k))
+console.log('zh keys:', zh.size, ' en keys:', en.size)
+console.log('only in zh:', onlyZh.length ? onlyZh.join(', ') : '(none)')
+console.log('only in en:', onlyEn.length ? onlyEn.join(', ') : '(none)')
+process.exit(onlyZh.length === 0 && onlyEn.length === 0 ? 0 : 1)

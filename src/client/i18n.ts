@@ -106,6 +106,11 @@ const COPY: Record<'zh' | 'en', Record<string, unknown>> = {
     windowInvalid: '时段须为 HH:MM 且开始早于结束',
     tzOffset: '时区偏移',
     tzOffsetInvalid: '时区偏移须为数字',
+    tzZero: '零时区',
+    tzEast: '东{n}区',
+    tzWest: '西{n}区',
+    /** 中文数字（时区名用，如「东八区」）。 */
+    cnNum: ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'],
     pricesSaved: '价格已保存',
     pricesEmpty: '至少保留一个价格档',
     fallbackHint: '通配档位：匹配所有未在上方列出的模型（match = *）',
@@ -215,6 +220,9 @@ const COPY: Record<'zh' | 'en', Record<string, unknown>> = {
     windowInvalid: 'Windows must be HH:MM and start before end',
     tzOffset: 'Timezone offset',
     tzOffsetInvalid: 'Timezone offset must be a number',
+    tzZero: 'UTC±0',
+    tzEast: 'UTC+{n}',
+    tzWest: 'UTC-{n}',
     pricesSaved: 'Prices saved',
     pricesEmpty: 'Keep at least one price tier',
     fallbackHint: 'Wildcard tier: matches any model not listed above (match = *)',
@@ -260,6 +268,12 @@ export const tErr = (res: { code?: string; error?: string } | null | undefined, 
     }
   }
   return (res && res.error) || fallback || ''
+}
+
+/** 中文数字（时区名用，如「东八区」）；zh 词典缺失或越界时回退阿拉伯数字。 */
+export function zhNumeral(index: number): string {
+  const list = (dict.cnNum as readonly string[] | undefined)
+  return list !== undefined && index >= 0 && index < list.length ? (list[index] as string) : String(index)
 }
 
 /** 金额格式化（保留合理小数位）。 */

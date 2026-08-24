@@ -12,7 +12,7 @@
 
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { RunFn } from '../rpc.ts'
-import { fmtAmount, fmtTokens, LANG, t, tErr } from '../i18n.ts'
+import { fmtAmount, fmtTokens, t, tErr, zhNumeral } from '../i18n.ts'
 
 /* ── 宿主载荷的最小读取形状 ───────────────────────────────── */
 
@@ -185,19 +185,10 @@ function fmtRate(rate: number | null): string {
   return (s.endsWith('.0') ? s.slice(0, -2) : s) + '%'
 }
 
-/** 中文数字（用于「东八区」式时区名）。 */
-const CN_NUM = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二']
-
-/** 把 UTC 偏移小时数格式化为时区名：东八区 / 西五区 / 零时区（中文），UTC+8（英文）。 */
+/** 把 UTC 偏移小时数格式化为时区名（zh：零时区 / 东八区 / 西五区；en：UTC±0 / UTC+8 / UTC-5）。 */
 function formatTimezone(offsetHours: number): string {
   const h = Math.round(offsetHours)
-  if (LANG === 'zh') {
-    if (h === 0) return '零时区'
-    const n = CN_NUM[Math.abs(h)] ?? String(Math.abs(h))
-    return h > 0 ? '东' + n + '区' : '西' + n + '区'
-  }
-  if (h === 0) return 'UTC±0'
-  return h > 0 ? 'UTC+' + h : 'UTC' + h
+  return t(h === 0 ? 'tzZero' : h > 0 ? 'tzEast' : 'tzWest', { n: zhNumeral(Math.abs(h)) })
 }
 
 export function BalanceModal({ run, useOpen, close, getSession, useTick, useAutoSeconds, setAutoSeconds, bumpPriceTick }: BalanceModalProps) {

@@ -9,6 +9,8 @@ export declare const tErr: (res: {
     code?: string;
     error?: string;
 } | null | undefined, fallback?: string) => string;
+/** 中文数字（时区名用，如「东八区」）；zh 词典缺失或越界时回退阿拉伯数字。 */
+export declare function zhNumeral(index: number): string;
 /** 金额格式化（保留合理小数位）。 */
 export declare const fmtAmount: (amount: number | undefined) => string;
 /** 货币代码 → 展示符号（CNY → ¥；未收录回退代码本身；空代码返回空串）。 */

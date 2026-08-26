@@ -62,7 +62,14 @@ async function main(): Promise<void> {
     'deepseek-official': 'https://api.deepseek.com',
   }
   const config = DEFAULT_PRICE_CONFIG
-  const result = await computeCosts(session, config, process.cwd(), providerBaseUrls)
+  // 新签名：sessionId + 内存 sessions 服务（fixture 会话经 get 返回；子代理血缘并入对 fixture id 无命中）。
+  const result = await computeCosts(
+    'fixture-session',
+    { get: (id) => id === 'fixture-session' ? session : undefined },
+    config,
+    process.cwd(),
+    providerBaseUrls,
+  )
 
   console.log('--- session.byKey（真实切换会话） ---')
   for (const k of result.session.byKey) {

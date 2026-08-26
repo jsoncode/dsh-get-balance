@@ -6,12 +6,8 @@
  * 返回值恒为 OpResult 形状（ok=false 带 code/error），由调用方包信封。
  */
 import type { CredentialsService, SettingsScope, SettingsService } from './providers.ts';
-import type { SessionLike } from './cost.ts';
+import { type SessionsService } from './cost.ts';
 import type { ExtraKey, OpRequest, OpResult, PriceConfig } from './types.ts';
-/** 宿主 sessions 服务最小视图。 */
-export interface SessionsService {
-    get(id: string): SessionLike | undefined;
-}
 /** runOp 的全部依赖（由 index.ts 的 apply 注入）。 */
 export interface OpDeps {
     settings?: SettingsService;

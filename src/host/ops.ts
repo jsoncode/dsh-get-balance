@@ -9,14 +9,8 @@
 import type { CredentialsService, SettingsScope, SettingsService } from './providers.ts'
 import { listDeepseekProviders, listProviderBaseUrls } from './providers.ts'
 import { queryBalances } from './balance.ts'
-import { computeCosts, normalizePriceConfig } from './cost.ts'
-import type { SessionLike } from './cost.ts'
+import { computeCosts, normalizePriceConfig, type SessionsService } from './cost.ts'
 import type { ExtraKey, OpRequest, OpResult, PriceConfig, PriceTier } from './types.ts'
-
-/** 宿主 sessions 服务最小视图。 */
-export interface SessionsService {
-  get(id: string): SessionLike | undefined
-}
 
 /** runOp 的全部依赖（由 index.ts 的 apply 注入）。 */
 export interface OpDeps {
@@ -100,13 +94,10 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
       }
       case 'cost': {
         const sessionId = typeof request.sessionId === 'string' ? request.sessionId : ''
-        const session = sessionId.length > 0 ? deps.sessions?.get(sessionId) : undefined
-        const currentCwd = typeof session?.header?.cwd === 'string' && session.header.cwd.length > 0
-          ? session.header.cwd
-          : process.cwd()
-        // 服务商 → baseURL 映射：按官方域名（api.deepseek.com）过滤非官方请求的 token。
+        // 会话解析（内存 → 磁盘兜底）+ 子代理血缘并入「本会话」在 computeCosts 内部完成；
+        // cwd 缺省回退 process.cwd()（computeCosts 内部优先用会话 header 的 cwd）。
         const providerBaseUrls = listProviderBaseUrls(deps.settings, deps.nsOf)
-        const result = await computeCosts(session, readPriceConfig(deps), currentCwd, providerBaseUrls)
+        const result = await computeCosts(sessionId, deps.sessions, readPriceConfig(deps), process.cwd(), providerBaseUrls)
         return { ok: true, cost: result }
       }
       case 'pricesGet': {

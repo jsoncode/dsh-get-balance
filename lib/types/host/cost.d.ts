@@ -1,12 +1,17 @@
 /**
  * dsh-get-balance —— 宿主半边：费用计算。
  *
- * 两条数据链：
+ * 三条数据链：
  * 1. 内存会话（ctx.sessions.get）：遍历 session.events，复刻官方 tokenUsage
  *    投影的折叠语义 —— 'assistant/chunk'(chunk.type==='usage') 提供早期样本，
  *    'assistant/message' 提供同一 (turn,step) 的最终样本，后值覆盖前值，
  *    不重复计费；'request/context' 追踪当前模型与服务商用于匹配价格档。
- * 2. 今日磁盘聚合：扫描 dshHomePath('sessions')/<project>/<sessionId>/
+ * 2. 磁盘会话兜底 + 子代理并入：已从内存注销的会话（如已结束的子代理，
+ *    dispose 后 ctx.sessions 不再保留）按 id 从 dshHomePath('sessions')/
+ *    <project>/<sessionId>/session.jsonl(.zstd) 读回；「本会话」再按
+ *    header.parentSession 血缘（同项目目录）把子孙子代理会话的用量一并折叠
+ *    进当前会话 —— 任务开子代理产生的流量归到主任务同一会话头上。
+ * 3. 今日磁盘聚合：扫描 dshHomePath('sessions')/<project>/<sessionId>/
  *    session.jsonl(.zstd)，mtime >= 今日零点粗筛 → zstd 解压（整包优先、
  *    多帧按魔数切分兜底）→ 首行 header 取 cwd → 只取 'assistant/message'
  *    且 time >= 今日零点的事件 → 按 (文件路径,mtime,size,今日零点) 记忆化。
@@ -14,7 +19,8 @@
  * 按 API key（服务商条目）分组统计：每个 provider（会话事件中的服务商路由，
  * 对应一个 API key）各自累计 token 四桶 —— 不区分官方与否，一律只统计数量；
  * 费用只对官方 key（baseURL 域名 == api.deepseek.com）按 模型 × 高峰/空闲时段
- * 计费，非官方 key 金额恒为 0（展示为「不计费」）。
+ * 计费，非官方 key 金额恒为 0（展示为「不计费」）。token 消耗量统计全部流量，
+ * 费用预估只针对 DeepSeek 自身的官方流量。
  *
  * 计费口径（每百万 tokens 单价）：时段判定：事件时间 → 配置时区偏移后的本地
  * HH:MM → 是否落在任一高峰窗口（开启「周六日半价」时周六/周日整天为空闲）；
@@ -94,12 +100,22 @@ export declare function periodPricesOf(tier: PriceTier, timeMs: number, config: 
  * @param prices - 价格档列表（空列表返回 undefined）。
  */
 export declare function matchTier(model: string | undefined, prices: readonly PriceTier[]): PriceTier | undefined;
+/** 宿主 sessions 服务最小视图（内存中的存活会话；已结束/已注销的会话取不到）。 */
+export interface SessionsService {
+    get(id: string): SessionLike | undefined;
+}
 /**
- * 计算一个内存会话的四项费用（最近一次提问 / 本会话 / 今日·本项目 / 今日·全部）。
- * @param session - 当前会话（可能为 undefined：实时两项归零）。
+ * 计算一个会话的四项费用（最近一次提问 / 本会话 / 今日·本项目 / 今日·全部）。
+ * 会话解析链：内存存活会话（sessions.get）优先，磁盘日志兜底（已结束的
+ * 子代理等已从内存注销的会话）；「本会话」再并入该会话的子孙（子代理）会话
+ * —— 与任务开子代理产生的流量归到主任务同一会话头上。子代理会话日志与父
+ * 任务同 cwd、同项目目录，模型/服务商记录在各自日志的 request/context 中，
+ * 统计与计费与主会话同等处理。
+ * @param sessionId - 当前会话 id（空串：实时两项归零）。
+ * @param sessions - 宿主内存 sessions 服务（可能缺失）。
  * @param config - 完整价格配置。
- * @param currentCwd - 「本项目」判定的 cwd（缺省 process.cwd()）。
+ * @param fallbackCwd - 会话 header 无 cwd 时「本项目」判定的 cwd（缺省 process.cwd()）。
  */
-export declare function computeCosts(session: SessionLike | undefined, config: PriceConfig, currentCwd: string, providerBaseUrls?: Record<string, string>): Promise<CostResult>;
+export declare function computeCosts(sessionId: string, sessions: SessionsService | undefined, config: PriceConfig, fallbackCwd: string, providerBaseUrls?: Record<string, string>): Promise<CostResult>;
 export {};
 //# sourceMappingURL=cost.d.ts.map

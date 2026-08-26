@@ -2,7 +2,8 @@
  * dsh-get-balance —— 宿主半边：op 分发。
  *
  * HTTP 路由（/dsh-balance/api）与命令通道（dsh-balance）共用同一入口 runOp：
- * providers / balance / cost / pricesGet / pricesSave / keysGet / keysSave。
+ * providers / balance / cost / pricesGet / pricesSave / keysGet / keysSave /
+ * autoRefreshGet / autoRefreshSave / updateCheck / pluginUpdateStart / pluginUpdateStatus。
  * 返回值恒为 OpResult 形状（ok=false 带 code/error），由调用方包信封。
  */
 import type { CredentialsService, SettingsScope, SettingsService } from './providers.ts';

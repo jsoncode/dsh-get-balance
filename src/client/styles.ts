@@ -26,7 +26,7 @@ export const css = [
   '@keyframes dshb-spin{to{transform:rotate(360deg)}}',
   // 侧边栏底部入口：样式对齐 DSH 设置按钮（sidebar.settings 的 trigger）——
   // 高 42px（窄栏 36px）、字号 14px/行高 22px、宽模式左对齐、图标 + 文字（仅宽模式显示文字）
-  '.dshb-footer-btn{box-sizing:border-box;cursor:pointer;width:calc(100% + 4px);height:42px;color:var(--dsw-alias-label-primary);background:transparent;border:none;border-radius:12px;flex:none;align-items:center;gap:8px;margin:4px -2px;padding:0 10px 0 8px;font-family:inherit;font-size:14px;line-height:22px;display:flex;overflow:hidden}',
+  '.dshb-footer-btn{box-sizing:border-box;position:relative;cursor:pointer;width:calc(100% + 4px);height:42px;color:var(--dsw-alias-label-primary);background:transparent;border:none;border-radius:12px;flex:none;align-items:center;gap:8px;margin:4px -2px;padding:0 10px 0 8px;font-family:inherit;font-size:14px;line-height:22px;display:flex;overflow:hidden}',
   '.dshb-footer-btn:hover{background:var(--dsw-alias-interactive-bg-hover)}',
   '.dshb-footer-btn-rail{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;margin:8px 0 10px;padding:0}',
   '.dshb-footer-group{width:100%;min-width:0}',
@@ -50,6 +50,16 @@ export const css = [
   '.dshb-period-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none}',
   '.dshb-period-dot-peak{background:var(--dsw-alias-state-error-primary,#d33)}',
   '.dshb-period-dot-off{background:#16a34a}',
+  // 更新胶囊：registry 有新版本时显示在按钮**最右侧**的小尺寸圆角胶囊
+  // （琥珀色警示色，白字 10px）；窄栏圆形按钮放不下文字，改为右上角小圆点徽标。
+  '.dshb-update-pill{display:inline-flex;align-items:center;height:16px;padding:0 7px;border-radius:999px;background:var(--dsw-alias-state-warn-primary,#f59e0b);color:#fff;font-size:10px;font-weight:600;line-height:1;letter-spacing:.02em;white-space:nowrap;flex:none;margin-left:8px}',
+  '.dshb-update-pill-dot{position:absolute;top:2px;right:2px;width:10px;height:10px;padding:0;margin-left:0;font-size:0;z-index:1}',
+  // 更新点击热区：胶囊的父盒子，等宽（撑满胶囊 + 两侧余量）、撑满按钮整高
+  // （top:0/bottom:0）。阻断点击冒泡（stopPropagation），避免事件穿透到按钮
+  // 误开余额弹框；整条热区点击都触发更新确认，而非只有胶囊文字本身。
+  // 无 hover 背景色：按钮本身已有 hover 态，热区再叠一层会显得「双重高亮」。
+  '.dshb-update-zone{position:absolute;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:0 10px;border-radius:12px;cursor:pointer;z-index:2}',
+  '.dshb-footer-btn-rail .dshb-update-zone{top:0;right:0;bottom:auto;left:auto;width:20px;height:20px;padding:0;border-radius:50%}',
   // 气泡内价词着色（宿主 Tooltip 深色底板白字之上覆盖）：高峰「全价」红 / 空闲「半价」绿
   '.dshb-tip{white-space:nowrap}',
   '.dshb-tip b{font-weight:600}',
@@ -68,10 +78,41 @@ export const css = [
   // 宿主 sidebar.footer.action 列表容器：改为纵向堆叠，多个按钮各占一行、按 order 升序
   'div:has(> [data-slot="sidebar.footer.action"]){flex-direction:column}',
   // 弹框
-  // 弹框蒙版：半透明黑 + 高斯模糊（backdrop-filter 模糊蒙版背后的页面内容，
+  // 弹框蒙版：半透明黑 + 高斯模糊（与 dsh-jenkins 的 dshj-backdrop 一致，
   // Safari 前缀 -webkit-backdrop-filter；不支持时优雅降级为纯半透明遮罩）
-  '.dshb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:auto}',
-  '.dshb-modal{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#ddd);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.28);width:min(760px,100%);min-height:420px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;color:var(--dsw-alias-label-primary,#222);font-size:14px}',
+  '.dshb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:auto;-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2)}',
+  // 弹框本体：玻璃拟态（半透明底色 + 自身 blur），与 dshj-modal 一致
+  '.dshb-modal{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 78%,transparent);border:1px solid var(--dsw-alias-border-l2,#ddd);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.28);width:min(760px,100%);min-height:420px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;color:var(--dsw-alias-label-primary,#222);font-size:14px;-webkit-backdrop-filter:blur(24px) saturate(1.5);backdrop-filter:blur(24px) saturate(1.5)}',
+  // 更新确认/日志弹框：层级高于余额弹框（z 1150），互斥打开互不干扰
+  '.dshb-confirm-backdrop{z-index:1150}',
+  // 更新确认弹框（小）与更新日志弹框（大）
+  '.dshb-modal-sm{width:min(420px,100%);min-height:0;max-height:60vh}',
+  '.dshb-modal-log{width:min(720px,100%);min-height:380px}',
+  // 更新弹框 body 覆盖基础的 grid stacking（grid-area:1/1 会把多个子元素叠到
+  // 同一格）：确认弹框的描述文字与命令代码块、日志弹框的状态行/日志/提示
+  // 均改为纵向 flex 布局，避免元素互相叠压。
+  '.dshb-modal-sm .dshb-modal-body{display:flex;flex-direction:column;gap:12px}',
+  '.dshb-modal-log .dshb-modal-body{display:flex;flex-direction:column}',
+  // 弹框头部标题块：标题 + 副标题（执行命令）纵向排列，flex:1 把关闭按钮推到最右
+  '.dshb-modal-head{flex:1;min-width:0}',
+  '.dshb-modal-sub{font-size:12px;color:var(--dsw-alias-label-secondary,#888);margin-top:2px;word-break:break-all}',
+  '.dshb-update-cmd-sub{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}',
+  // 终端式日志面板：深底等宽字体，内部滚动；flex:1 撑满日志弹框主体
+  '.dshb-update-log{flex:1;min-height:0;overflow:auto;background:#0f1419;color:#d5d8dc;border:1px solid var(--dsw-alias-border-l2,#333);border-radius:8px;padding:10px 12px;margin:0 0 10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word}',
+  '.dshb-update-status{display:flex;align-items:center;gap:8px;font-size:12px;margin:0 0 10px;color:var(--dsw-alias-label-secondary,#888)}',
+  '.dshb-update-status-ok{color:#16a34a}',
+  '.dshb-update-status-err{color:var(--dsw-alias-state-error-primary,#d33)}',
+  '.dshb-update-duration{flex:none;white-space:nowrap;margin-left:auto;font-variant-numeric:tabular-nums}',
+  '.dshb-spinner-inline{width:12px;height:12px;border-radius:50%;border:2px solid var(--dsw-alias-border-l2,#ccc);border-top-color:var(--dsw-alias-brand-primary,#1668e3);animation:dshb-spin .8s linear infinite;flex:none}',
+  '.dshb-update-actions{display:flex;align-items:center;gap:8px;margin-left:auto}',
+  // 运行中的「实时刷新中」标记（标题旁绿色小胶囊）
+  '.dshb-log-live-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--dsw-alias-state-success-primary,#2a7d3c);background:color-mix(in srgb,var(--dsw-alias-state-success-primary,#2a7d3c) 12%,transparent);border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:1px}',
+  // 更新完成提示（页脚左侧，靠左）
+  '.dshb-update-hint{margin-right:auto;font-size:12px;color:var(--dsw-alias-label-secondary,#888);display:inline-flex;align-items:center;gap:6px;flex:none}',
+  // 代码块（确认弹框中的更新命令）：浅色玻璃底板，横向可滚动
+  '.dshb-code{margin:0;padding:12px 14px;background:color-mix(in srgb,var(--dsw-alias-bg-base,#fff) 84%,transparent);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:auto;max-height:52vh;font-size:12px;line-height:1.55;color:var(--dsw-alias-label-primary,#222);white-space:pre;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}',
+  // 不支持 backdrop-filter 时的降级底色
+  '@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){.dshb-modal{background:var(--dsw-alias-bg-layer-1,#fff)}.dshb-code{background:var(--dsw-alias-bg-base,#fff)}}',
   // 弹框头部单行：标题 + tab 同行，右侧操作区（margin-left:auto 推到最右）
   '.dshb-modal-header{display:flex;align-items:center;gap:12px;padding:8px 14px 8px 18px;border-bottom:1px solid var(--dsw-alias-border-l1,#eee);flex:none}',
   '.dshb-modal-title{font-size:15px;font-weight:600;white-space:nowrap}',

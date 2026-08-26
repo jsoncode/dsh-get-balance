@@ -7,17 +7,20 @@
  *
  * 入口结构（统一弹框）：
  * - sidebar.footer.action：常驻「余额」按钮（固定 order: 30，排在插槽
- *   靠前位置），点击打开统一弹框；
+ *   靠前位置），点击打开统一弹框；检测到新版本时最右侧显示「更新」胶囊，
+ *   点击胶囊 → 确认弹框 → 日志大弹框（dsh plugin --profile web update 执行日志）；
  * - shell.overlay（dsh-balance-modal）：统一弹框，三个 tab —— 余额 / 费用 /
- *   价格设置，所有余额相关的显示与设置都收敛在此。
+ *   价格设置，所有余额相关的显示与设置都收敛在此；
+ * - shell.overlay（dsh-balance-update）：更新确认弹框 / 更新日志大弹框。
  */
 
 import { injectStyles } from './styles.ts'
 import { makeRun, type RunFn } from './rpc.ts'
-import { makeBalanceModalStore } from './store.ts'
+import { makeBalanceModalStore, type UpdateInfo } from './store.ts'
 import { FooterButton } from './components/FooterButton.tsx'
 import { HeaderButton } from './components/HeaderButton.tsx'
 import { BalanceModal } from './components/BalanceModal.tsx'
+import { UpdateDialogs } from './components/UpdateDialogs.tsx'
 
 /** 宿主 slots 服务最小视图。 */
 interface SlotsService {
@@ -57,7 +60,11 @@ export function createPlugin(): ClientPluginModule {
 
     apply(ctx: ClientCtx) {
       const run: RunFn = makeRun(ctx)
-      const { store: modalStore, useOpen, autoStore, tickStore, bumpTick, useTick, useAutoSeconds, usePriceTick, bumpPriceTick, useBalanceTick, bumpBalanceTick } = makeBalanceModalStore()
+      const {
+        store: modalStore, useOpen, autoStore, tickStore, bumpTick, useTick, useAutoSeconds,
+        usePriceTick, bumpPriceTick, useBalanceTick, bumpBalanceTick, setUpdate, useUpdate,
+        openUpdateConfirm, openUpdateLog, closeUpdateUi, useUpdateUi,
+      } = makeBalanceModalStore()
       const slots = ctx.get<SlotsService>('slots')
       if (slots === undefined) return
       injectStyles()
@@ -69,6 +76,25 @@ export function createPlugin(): ClientPluginModule {
           autoStore.emit()
         }
       }).catch(() => { /* 宿主不可达时保持关闭 */ })
+
+      // 插件新版本检查：宿主以 npm registry（keywords:dsh-get-balance）最新版
+      // 比对被安装根目录 package.json，hasUpdate=true 时 footer 按钮最右侧显示
+      // 【更新】胶囊。宿主侧缓存 10 分钟；失败静默（不显示胶囊）。
+      // recheckUpdate 在更新进程成功结束后再次调用（宿主已使版本缓存失效），
+      // 用于让「更新」胶囊消失。
+      const recheckUpdate = (): void => {
+        void run('', { op: 'updateCheck' }).then((res) => {
+          const raw = res.update as Partial<UpdateInfo> | undefined
+          if (raw !== null && typeof raw === 'object' && typeof raw.hasUpdate === 'boolean') {
+            setUpdate({
+              current: String(raw.current ?? ''),
+              latest: String(raw.latest ?? ''),
+              hasUpdate: raw.hasUpdate === true,
+            })
+          }
+        }).catch(() => { /* 检查失败不打扰用户 */ })
+      }
+      recheckUpdate()
       let lastAutoAt = Date.now()
       setInterval(() => {
         const seconds = autoStore.value ?? 0
@@ -111,6 +137,8 @@ export function createPlugin(): ClientPluginModule {
             useOpen={useOpen}
             usePriceTick={usePriceTick}
             useBalanceTick={useBalanceTick}
+            useUpdate={useUpdate}
+            onUpdateClick={openUpdateConfirm}
           />
         ),
       ))
@@ -147,6 +175,23 @@ export function createPlugin(): ClientPluginModule {
               autoStore.emit()
               lastAutoAt = Date.now()
             }}
+          />
+        ),
+      ))
+      // ─── 更新确认 / 日志弹框（shell.overlay，与余额弹框并列）──────────
+      // 点击「更新」胶囊 → 确认弹框（当前 vX → 最新 vY）→ 确认后打开日志
+      // 大弹框：宿主后台执行 dsh plugin --profile web update dsh-get-balance，
+      // 组件轮询拉取详细日志；成功后 recheckUpdate 重查版本（胶囊消失）。
+      slots.inject('shell.overlay', () => slots.register(
+        { name: 'shell.overlay', id: 'dsh-balance-update' },
+        () => (
+          <UpdateDialogs
+            run={run}
+            useUpdate={useUpdate}
+            useUi={useUpdateUi}
+            closeUi={closeUpdateUi}
+            onConfirm={() => { closeUpdateUi(); openUpdateLog() }}
+            recheck={recheckUpdate}
           />
         ),
       ))

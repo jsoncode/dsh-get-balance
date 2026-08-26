@@ -9,6 +9,30 @@ interface StoreState<T> {
     open(value: T): void;
     close(): void;
 }
+/** 插件更新检查结果（宿主 updateCheck op 载荷）。 */
+export interface UpdateInfo {
+    /** 被安装根目录 package.json 的当前版本。 */
+    current: string;
+    /** npm registry 上的最新版本（未取到为空串）。 */
+    latest: string;
+    /** latest 是否比 current 更新。 */
+    hasUpdate: boolean;
+}
+/** 插件更新进程状态（宿主 pluginUpdateStatus op 载荷）。 */
+export interface UpdateStatusView {
+    running: boolean;
+    done: boolean;
+    /** 累计输出（宿主环形缓冲尾部）。 */
+    output: string;
+    exitCode: number | null;
+    error: string;
+    /** 启动时刻（epoch ms）；展示耗时用。 */
+    startedAt?: number | null;
+    /** 结束时刻（epoch ms）；运行中为 null。 */
+    finishedAt?: number | null;
+}
+/** 更新交互 UI 状态：none=未打开 confirm=确认弹框 log=日志大弹框。 */
+export type UpdateUi = 'none' | 'confirm' | 'log';
 export interface BalanceModalStore {
     store: StoreState<boolean>;
     useOpen(): boolean;
@@ -31,6 +55,18 @@ export interface BalanceModalStore {
     balanceTickStore: StoreState<number>;
     useBalanceTick(): number;
     bumpBalanceTick(): void;
+    /**
+     * 插件更新信息：插件启动时经宿主 updateCheck op 查询一次
+     * （npm registry vs 安装根目录 package.json），hasUpdate=true 时
+     * footer 按钮最右侧显示【更新】小胶囊。
+     */
+    setUpdate(info: UpdateInfo): void;
+    useUpdate(): UpdateInfo | null;
+    /** 更新交互 UI 状态（确认弹框 → 日志大弹框）。 */
+    openUpdateConfirm(): void;
+    openUpdateLog(): void;
+    closeUpdateUi(): void;
+    useUpdateUi(): UpdateUi;
 }
 /** 统一「余额」弹框的打开状态（footer 入口 open，overlay 弹框消费）。 */
 export declare function makeBalanceModalStore(): BalanceModalStore;

@@ -2,7 +2,8 @@
  * dsh-get-balance —— 宿主半边：op 分发。
  *
  * HTTP 路由（/dsh-balance/api）与命令通道（dsh-balance）共用同一入口 runOp：
- * providers / balance / cost / pricesGet / pricesSave / keysGet / keysSave。
+ * providers / balance / cost / pricesGet / pricesSave / keysGet / keysSave /
+ * autoRefreshGet / autoRefreshSave / updateCheck / pluginUpdateStart / pluginUpdateStatus。
  * 返回值恒为 OpResult 形状（ok=false 带 code/error），由调用方包信封。
  */
 
@@ -10,6 +11,8 @@ import type { CredentialsService, SettingsScope, SettingsService } from './provi
 import { listDeepseekProviders, listProviderBaseUrls } from './providers.ts'
 import { queryBalances } from './balance.ts'
 import { computeCosts, normalizePriceConfig, type SessionsService } from './cost.ts'
+import { checkPluginUpdate, resetInstalledVersionCache } from './update.ts'
+import { getPluginUpdateStatus, startPluginUpdate } from './plugin-update.ts'
 import type { ExtraKey, OpRequest, OpResult, PriceConfig, PriceTier } from './types.ts'
 
 /** runOp 的全部依赖（由 index.ts 的 apply 注入）。 */
@@ -155,6 +158,27 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
         }
         await writeJson(deps.scope, 'autoRefreshJson', String(seconds))
         return { ok: true, seconds }
+      }
+      case 'updateCheck': {
+        // npm registry（keywords:dsh-get-balance）最新版 vs 被安装根目录
+        // package.json 版本；宿主进程内缓存 10 分钟，网络失败静默降级。
+        const update = await checkPluginUpdate()
+        return { ok: true, update }
+      }
+      case 'pluginUpdateStart': {
+        // 后台执行 `dsh plugin --profile web update dsh-get-balance`，
+        // stdout/stderr 进入宿主环形缓冲，客户端轮询 status 拉取日志。
+        const start = startPluginUpdate()
+        return start.ok
+          ? { ok: true, alreadyRunning: start.alreadyRunning === true }
+          : { ok: false, code: 'spawn-failed', error: start.error ?? 'failed to spawn dsh' }
+      }
+      case 'pluginUpdateStatus': {
+        const status = getPluginUpdateStatus()
+        // 更新进程结束后使版本缓存失效：下一次 updateCheck 重读新版本号，
+        // 客户端据此隐藏「更新」胶囊。
+        if (status.done) resetInstalledVersionCache()
+        return { ok: true, status }
       }
       default:
         return { ok: false, code: 'op-unknown', error: `unknown op: ${String(request.op)}` }

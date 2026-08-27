@@ -166,7 +166,9 @@ export interface CostResult {
 
 /** /dsh-balance/api 请求体（HTTP 与命令通道共用）。 */
 export interface OpRequest {
-  op: 'providers' | 'balance' | 'cost' | 'pricesGet' | 'pricesSave' | 'keysGet' | 'keysSave' | 'autoRefreshGet' | 'autoRefreshSave' | 'updateCheck' | 'pluginUpdateStart' | 'pluginUpdateStatus' | ''
+  op: 'providers' | 'balance' | 'cost' | 'pricesGet' | 'pricesSave' | 'keysGet' | 'keysSave'
+    | 'autoRefreshGet' | 'autoRefreshSave' | 'showBalanceGet' | 'showBalanceSave'
+    | 'updateCheck' | 'pluginUpdateStart' | 'pluginUpdateStatus' | ''
   sessionId?: string
   /** balance：绕过 60s 缓存。 */
   refresh?: boolean
@@ -176,6 +178,8 @@ export interface OpRequest {
   keys?: ExtraKey[]
   /** autoRefreshSave：定时自动刷新间隔（秒，0 = 关闭）。 */
   seconds?: number
+  /** showBalanceSave：「显示余额」开关（true = 展示，false = 全部掩码为 **）。 */
+  enabled?: boolean
 }
 
 /** op 载荷统一形状：ok=false 时带 code/error。 */

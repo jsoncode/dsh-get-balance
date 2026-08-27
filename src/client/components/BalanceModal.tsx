@@ -127,6 +127,10 @@ export interface BalanceModalProps {
   setAutoSeconds(seconds: number): void
   /** 价格配置保存成功后调用：通知 footer / 头部按钮立即刷新时段与费用显示。 */
   bumpPriceTick(): void
+  /** 「显示余额」开关当前值（false = footer 与余额列表金额掩码为 **）。 */
+  useShowBalance(): boolean
+  /** 切换「显示余额」开关：即时生效并持久化（footer 入口同步跟随）。 */
+  setShowBalance(enabled: boolean): void
 }
 
 const sourceChipKey: Record<ProviderView['source'], string> = {
@@ -191,10 +195,11 @@ function formatTimezone(offsetHours: number): string {
   return t(h === 0 ? 'tzZero' : h > 0 ? 'tzEast' : 'tzWest', { n: zhNumeral(Math.abs(h)) })
 }
 
-export function BalanceModal({ run, useOpen, close, getSession, useTick, useAutoSeconds, setAutoSeconds, bumpPriceTick }: BalanceModalProps) {
+export function BalanceModal({ run, useOpen, close, getSession, useTick, useAutoSeconds, setAutoSeconds, bumpPriceTick, useShowBalance, setShowBalance }: BalanceModalProps) {
   const open = useOpen()
   const tick = useTick()
   const autoSeconds = useAutoSeconds()
+  const showBalance = useShowBalance()
   const [tab, setTab] = useState<Tab>('balance')
   // 定时更新配置弹框
   const [timingOpen, setTimingOpen] = useState(false)
@@ -398,6 +403,9 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
 
   const balanceOf = (id: string): BalanceView | undefined => balances[id]
 
+  /** 余额金额展示：「显示余额」关闭时统一掩码为 **（footer 入口同步生效）。 */
+  const balanceText = (v: string): string => (showBalance ? v : '**')
+
   /**
    * 单个服务商条目（API key）的今日消耗：从 cost.todayAll.byKey 按
    * 服务商路由匹配（pi-ai:<route> / llm-deepseek:<route> / label / 共享路由）。
@@ -410,6 +418,24 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
 
   const renderBalanceTab = () => (
     <div>
+      {/* 显示余额滑动开关：位于余额列表上方；关闭后 footer 入口与本列表的金额一律显示为 ** */}
+      <div className="dshb-showbalance-row">
+        <div className="dshb-showbalance-text">
+          <div className="dshb-showbalance-title">{t('showBalanceToggle')}</div>
+          <p className="dshb-showbalance-hint">{t('showBalanceHint')}</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={showBalance}
+          aria-label={t('showBalanceToggle')}
+          title={t('showBalanceToggle')}
+          className={'dshb-switch' + (showBalance ? ' dshb-switch-on' : '')}
+          onClick={() => setShowBalance(!showBalance)}
+        >
+          <span className="dshb-switch-thumb" />
+        </button>
+      </div>
       {providers === null
         ? <div className="dshb-spinner" />
         : providers.length === 0
@@ -459,10 +485,10 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
                                     <span className="dshb-balance-num">≈{fmtAmount(kc?.amount ?? 0)} {kcCurrency}</span>
                                     <span className="dshb-balance-sep">|</span>
                                     <span>{t('summaryBalance')}</span>
-                                    <span className="dshb-balance-num">{info.total_balance} {info.currency}</span>
+                                    <span className="dshb-balance-num">{balanceText(info.total_balance)} {info.currency}</span>
                                   </div>
                                   <div className={'dshb-prov-sub' + (info.topped_out ? ' dshb-topped' : '')}>
-                                    {t('balanceGranted')} {info.granted_balance}
+                                    {t('balanceGranted')} {balanceText(info.granted_balance)}
                                     {info.topped_out ? ` · ${t('toppedOut')}` : ''}
                                   </div>
                                 </div>

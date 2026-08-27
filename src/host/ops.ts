@@ -3,7 +3,8 @@
  *
  * HTTP 路由（/dsh-balance/api）与命令通道（dsh-balance）共用同一入口 runOp：
  * providers / balance / cost / pricesGet / pricesSave / keysGet / keysSave /
- * autoRefreshGet / autoRefreshSave / updateCheck / pluginUpdateStart / pluginUpdateStatus。
+ * autoRefreshGet / autoRefreshSave / showBalanceGet / showBalanceSave /
+ * updateCheck / pluginUpdateStart / pluginUpdateStatus。
  * 返回值恒为 OpResult 形状（ok=false 带 code/error），由调用方包信封。
  *
  * 插件持久数据（附加 key / 价格档 / 自动刷新间隔）读写 `$DSH_HOME/
@@ -43,6 +44,11 @@ export async function readPriceConfig(): Promise<PriceConfig> {
 /** 读取定时自动刷新间隔（秒，0 = 关闭）。 */
 export async function readAutoSeconds(): Promise<number> {
   return (await readPluginConfig()).autoRefreshSeconds
+}
+
+/** 读取「显示余额」开关（false = footer 与余额列表的金额掩码为 **）。 */
+export async function readShowBalance(): Promise<boolean> {
+  return (await readPluginConfig()).showBalance
 }
 
 /* ── op 分发 ──────────────────────────────────────────────── */
@@ -133,6 +139,16 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
         }
         await savePluginConfig({ autoRefreshSeconds: seconds })
         return { ok: true, seconds }
+      }
+      case 'showBalanceGet': {
+        return { ok: true, enabled: await readShowBalance() }
+      }
+      case 'showBalanceSave': {
+        if (typeof request.enabled !== 'boolean') {
+          return { ok: false, code: 'params-invalid', error: 'enabled must be a boolean' }
+        }
+        await savePluginConfig({ showBalance: request.enabled })
+        return { ok: true, enabled: request.enabled }
       }
       case 'updateCheck': {
         // npm registry（keywords:dsh-get-balance）最新版 vs 被安装根目录

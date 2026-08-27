@@ -136,13 +136,15 @@ export interface FooterButtonProps {
   usePriceTick?(): number
   /** 余额刷新 tick（插件共享 store）：头部按钮确认刚完成的请求走 DeepSeek 官方接口后递增，此处强制刷新余额。 */
   useBalanceTick?(): number
+  /** 「显示余额」开关（插件共享 store）：false 时各分段金额掩码为 **。 */
+  useShowBalance?(): boolean
   /** 插件更新信息（插件共享 store）：hasUpdate=true 时按钮最右侧显示【更新】小胶囊。 */
   useUpdate?(): UpdateInfo | null
   /** 点击更新热区（胶囊父盒子）：打开「确认更新」弹框。 */
   onUpdateClick?(): void
 }
 
-export function FooterButton({ onOpen, reportSession, wide = false, useSessions, run, useOpen, usePriceTick, useBalanceTick, useUpdate, onUpdateClick }: FooterButtonProps) {
+export function FooterButton({ onOpen, reportSession, wide = false, useSessions, run, useOpen, usePriceTick, useBalanceTick, useShowBalance, useUpdate, onUpdateClick }: FooterButtonProps) {
   const currentSessionId = useSessions
     ? (useSessions((s) => s && s.current) as string | undefined)
     : null
@@ -151,6 +153,8 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
   const open = useOpen()
   const priceTick = usePriceTick?.() ?? 0
   const balanceTick = useBalanceTick?.() ?? 0
+  // 「显示余额」开关：关闭时各分段金额一律显示为 **（与余额 tab 列表同步）。
+  const showBalance = useShowBalance?.() ?? true
   const update = useUpdate?.() ?? null
   const [peak, setPeak] = useState<boolean | null>(null)
   // 每个服务商（账号）一段；null = 尚未取到（不渲染），[] = 无服务商（不渲染）。
@@ -241,10 +245,11 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
         </span>
       </Tooltip>
     )
-  // 多账号文案：每个服务商（账号）一段，| 分隔；取不到余额的分段以 -- 占位。
+  // 多账号文案：每个服务商（账号）一段，| 分隔；取不到余额的分段以 -- 占位；
+  // 「显示余额」关闭时全部分段掩码为 **。
   const balText = bals === null || bals.length === 0
     ? ''
-    : bals.map((seg) => seg.ok ? currencySymbol(seg.currency) + seg.total : '--').join(' | ')
+    : bals.map((seg) => !showBalance ? '**' : seg.ok ? currencySymbol(seg.currency) + seg.total : '--').join(' | ')
   const fullLabel = t('balanceBtn') + (balText !== '' ? ' ' + balText : '') + (periodTip !== '' ? ' ' + periodTip : '')
 
   return (
@@ -269,20 +274,22 @@ export function FooterButton({ onOpen, reportSession, wide = false, useSessions,
                   {bals.map((seg, i) => (
                     <Fragment key={i}>
                       {i > 0 ? <span className="dshb-footer-balance-sep" aria-hidden="true">|</span> : null}
-                      {seg.ok
-                        ? (() => {
-                          const sym = currencySymbol(seg.currency)
-                          const n = parseFloat(seg.total)
-                          return (
-                            <span className="dshb-footer-balance-seg">
-                              {sym !== '' ? <span className="dshb-footer-cur">{sym}</span> : null}
-                              <NumberRoller value={Number.isFinite(n) ? n : null} format={(v) => v.toFixed(2)} fallback="--" className="dshb-footer-balance-num" />
-                            </span>
-                          )
-                        })()
-                        : (
-                          <span className="dshb-footer-balance-seg dshb-footer-balance-err" title={tErr({ code: seg.code, error: seg.error }, t('noCredential'))}>--</span>
-                        )}
+                      {!showBalance
+                        ? <span className="dshb-footer-balance-seg">**</span>
+                        : seg.ok
+                          ? (() => {
+                            const sym = currencySymbol(seg.currency)
+                            const n = parseFloat(seg.total)
+                            return (
+                              <span className="dshb-footer-balance-seg">
+                                {sym !== '' ? <span className="dshb-footer-cur">{sym}</span> : null}
+                                <NumberRoller value={Number.isFinite(n) ? n : null} format={(v) => v.toFixed(2)} fallback="--" className="dshb-footer-balance-num" />
+                              </span>
+                            )
+                          })()
+                          : (
+                            <span className="dshb-footer-balance-seg dshb-footer-balance-err" title={tErr({ code: seg.code, error: seg.error }, t('noCredential'))}>--</span>
+                          )}
                     </Fragment>
                   ))}
                 </span>

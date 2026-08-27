@@ -24,6 +24,8 @@ export interface PluginConfigFile {
     extraKeys: ExtraKey[];
     prices: PriceConfig;
     autoRefreshSeconds: number;
+    /** 「显示余额」开关：false 时 footer 入口与余额列表的金额一律掩码为 **（默认 true）。 */
+    showBalance: boolean;
 }
 /** config-file 模块初始化依赖（由 index.ts 的 apply 注入）。 */
 export interface ConfigDeps {

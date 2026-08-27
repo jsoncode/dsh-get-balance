@@ -41,10 +41,12 @@ export interface FooterButtonProps {
     usePriceTick?(): number;
     /** 余额刷新 tick（插件共享 store）：头部按钮确认刚完成的请求走 DeepSeek 官方接口后递增，此处强制刷新余额。 */
     useBalanceTick?(): number;
+    /** 「显示余额」开关（插件共享 store）：false 时各分段金额掩码为 **。 */
+    useShowBalance?(): boolean;
     /** 插件更新信息（插件共享 store）：hasUpdate=true 时按钮最右侧显示【更新】小胶囊。 */
     useUpdate?(): UpdateInfo | null;
     /** 点击更新热区（胶囊父盒子）：打开「确认更新」弹框。 */
     onUpdateClick?(): void;
 }
-export declare function FooterButton({ onOpen, reportSession, wide, useSessions, run, useOpen, usePriceTick, useBalanceTick, useUpdate, onUpdateClick }: FooterButtonProps): import("react").JSX.Element;
+export declare function FooterButton({ onOpen, reportSession, wide, useSessions, run, useOpen, usePriceTick, useBalanceTick, useShowBalance, useUpdate, onUpdateClick }: FooterButtonProps): import("react").JSX.Element;
 //# sourceMappingURL=FooterButton.d.ts.map

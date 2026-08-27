@@ -3,7 +3,8 @@
  *
  * HTTP 路由（/dsh-balance/api）与命令通道（dsh-balance）共用同一入口 runOp：
  * providers / balance / cost / pricesGet / pricesSave / keysGet / keysSave /
- * autoRefreshGet / autoRefreshSave / updateCheck / pluginUpdateStart / pluginUpdateStatus。
+ * autoRefreshGet / autoRefreshSave / showBalanceGet / showBalanceSave /
+ * updateCheck / pluginUpdateStart / pluginUpdateStatus。
  * 返回值恒为 OpResult 形状（ok=false 带 code/error），由调用方包信封。
  *
  * 插件持久数据（附加 key / 价格档 / 自动刷新间隔）读写 `$DSH_HOME/
@@ -26,6 +27,8 @@ export declare function readExtraKeys(): Promise<ExtraKey[]>;
 export declare function readPriceConfig(): Promise<PriceConfig>;
 /** 读取定时自动刷新间隔（秒，0 = 关闭）。 */
 export declare function readAutoSeconds(): Promise<number>;
+/** 读取「显示余额」开关（false = footer 与余额列表的金额掩码为 **）。 */
+export declare function readShowBalance(): Promise<boolean>;
 /**
  * 执行一个 op。
  * @param deps - apply 注入的宿主依赖。

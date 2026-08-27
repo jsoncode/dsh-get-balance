@@ -24,6 +24,10 @@ export interface BalanceModalProps {
     setAutoSeconds(seconds: number): void;
     /** 价格配置保存成功后调用：通知 footer / 头部按钮立即刷新时段与费用显示。 */
     bumpPriceTick(): void;
+    /** 「显示余额」开关当前值（false = footer 与余额列表金额掩码为 **）。 */
+    useShowBalance(): boolean;
+    /** 切换「显示余额」开关：即时生效并持久化（footer 入口同步跟随）。 */
+    setShowBalance(enabled: boolean): void;
 }
-export declare function BalanceModal({ run, useOpen, close, getSession, useTick, useAutoSeconds, setAutoSeconds, bumpPriceTick }: BalanceModalProps): import("react").JSX.Element | null;
+export declare function BalanceModal({ run, useOpen, close, getSession, useTick, useAutoSeconds, setAutoSeconds, bumpPriceTick, useShowBalance, setShowBalance }: BalanceModalProps): import("react").JSX.Element | null;
 //# sourceMappingURL=BalanceModal.d.ts.map

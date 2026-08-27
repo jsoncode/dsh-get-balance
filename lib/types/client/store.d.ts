@@ -56,6 +56,13 @@ export interface BalanceModalStore {
     useBalanceTick(): number;
     bumpBalanceTick(): void;
     /**
+     * 「显示余额」开关（余额 tab 列表上方的滑动开关）：false 时 footer 入口与
+     * 余额列表中的金额一律掩码为 **。初始 true，插件启动时经宿主 showBalanceGet
+     * 水合为持久化值；弹框内切换经 setShowBalance 即时生效并持久化。
+     */
+    showBalanceStore: StoreState<boolean>;
+    useShowBalance(): boolean;
+    /**
      * 插件更新信息：插件启动时经宿主 updateCheck op 查询一次
      * （npm registry vs 安装根目录 package.json），hasUpdate=true 时
      * footer 按钮最右侧显示【更新】小胶囊。

@@ -62,7 +62,8 @@ export function createPlugin(): ClientPluginModule {
       const run: RunFn = makeRun(ctx)
       const {
         store: modalStore, useOpen, autoStore, tickStore, bumpTick, useTick, useAutoSeconds,
-        usePriceTick, bumpPriceTick, useBalanceTick, bumpBalanceTick, setUpdate, useUpdate,
+        usePriceTick, bumpPriceTick, useBalanceTick, bumpBalanceTick, showBalanceStore, useShowBalance,
+        setUpdate, useUpdate,
         openUpdateConfirm, openUpdateLog, closeUpdateUi, useUpdateUi,
       } = makeBalanceModalStore()
       const slots = ctx.get<SlotsService>('slots')
@@ -76,6 +77,29 @@ export function createPlugin(): ClientPluginModule {
           autoStore.emit()
         }
       }).catch(() => { /* 宿主不可达时保持关闭 */ })
+
+      // 载入持久化的「显示余额」开关（余额 tab 列表上方的滑动开关；默认开启）。
+      // 关闭时 footer 入口与余额列表中的金额掩码为 **。
+      void run('', { op: 'showBalanceGet' }).then((res) => {
+        if (typeof res.enabled === 'boolean') {
+          showBalanceStore.value = res.enabled
+          showBalanceStore.emit()
+        }
+      }).catch(() => { /* 宿主不可达时保持默认开启 */ })
+
+      // 切换「显示余额」开关：本地 store 即时生效（footer 与弹框同步重渲染），
+      // 同时持久化到插件配置文件（$DSH_HOME/dsh-get-balance.json）；持久化结果
+      // 与本地不一致时以持久化值为准收敛。失败静默 —— 保留本地生效值。
+      const setShowBalance = (enabled: boolean): void => {
+        showBalanceStore.value = enabled
+        showBalanceStore.emit()
+        void run('', { op: 'showBalanceSave', enabled }).then((res) => {
+          if (res.ok && typeof res.enabled === 'boolean' && res.enabled !== (showBalanceStore.value ?? true)) {
+            showBalanceStore.value = res.enabled
+            showBalanceStore.emit()
+          }
+        }).catch(() => { /* 持久化失败不打扰用户 */ })
+      }
 
       // 插件新版本检查：宿主以 npm registry（keywords:dsh-get-balance）最新版
       // 比对被安装根目录 package.json，hasUpdate=true 时 footer 按钮最右侧显示
@@ -137,6 +161,7 @@ export function createPlugin(): ClientPluginModule {
             useOpen={useOpen}
             usePriceTick={usePriceTick}
             useBalanceTick={useBalanceTick}
+            useShowBalance={useShowBalance}
             useUpdate={useUpdate}
             onUpdateClick={openUpdateConfirm}
           />
@@ -170,6 +195,8 @@ export function createPlugin(): ClientPluginModule {
             useTick={useTick}
             useAutoSeconds={useAutoSeconds}
             bumpPriceTick={bumpPriceTick}
+            useShowBalance={useShowBalance}
+            setShowBalance={setShowBalance}
             setAutoSeconds={(seconds) => {
               autoStore.value = seconds
               autoStore.emit()

@@ -75,6 +75,13 @@ export interface BalanceModalStore {
   useBalanceTick(): number
   bumpBalanceTick(): void
   /**
+   * 「显示余额」开关（余额 tab 列表上方的滑动开关）：false 时 footer 入口与
+   * 余额列表中的金额一律掩码为 **。初始 true，插件启动时经宿主 showBalanceGet
+   * 水合为持久化值；弹框内切换经 setShowBalance 即时生效并持久化。
+   */
+  showBalanceStore: StoreState<boolean>
+  useShowBalance(): boolean
+  /**
    * 插件更新信息：插件启动时经宿主 updateCheck op 查询一次
    * （npm registry vs 安装根目录 package.json），hasUpdate=true 时
    * footer 按钮最右侧显示【更新】小胶囊。
@@ -101,12 +108,14 @@ export function makeBalanceModalStore(): BalanceModalStore {
   const tickStore = createStore<number>()
   const priceTickStore = createStore<number>()
   const balanceTickStore = createStore<number>()
+  const showBalanceStore = createStore<boolean>()
   const updateStore = createStore<UpdateInfo>()
   const updateUiStore = createStore<UpdateUi>()
   autoStore.value = 0
   tickStore.value = 0
   priceTickStore.value = 0
   balanceTickStore.value = 0
+  showBalanceStore.value = true
   updateUiStore.value = 'none'
   const useOpen = (): boolean => {
     const [v, setV] = useState<boolean>(!!store.value)
@@ -141,6 +150,11 @@ export function makeBalanceModalStore(): BalanceModalStore {
     balanceTickStore.value = (balanceTickStore.value ?? 0) + 1
     balanceTickStore.emit()
   }
+  /** 「显示余额」开关读取（未水合时回退默认 true）。 */
+  const useShowBalance = (): boolean => {
+    const v = useStoreValue<boolean>(showBalanceStore)
+    return v ?? true
+  }
   const setUpdate = (info: UpdateInfo): void => {
     updateStore.value = info
     updateStore.emit()
@@ -152,6 +166,7 @@ export function makeBalanceModalStore(): BalanceModalStore {
   return {
     store, useOpen, autoStore, useAutoSeconds, tickStore, useTick, bumpTick,
     priceTickStore, usePriceTick, bumpPriceTick, balanceTickStore, useBalanceTick, bumpBalanceTick,
+    showBalanceStore, useShowBalance,
     setUpdate,
     useUpdate: (): UpdateInfo | null => useStoreValue<UpdateInfo>(updateStore),
     openUpdateConfirm: () => { updateUiStore.value = 'confirm'; updateUiStore.emit() },

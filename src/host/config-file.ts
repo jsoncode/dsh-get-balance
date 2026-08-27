@@ -36,6 +36,8 @@ export interface PluginConfigFile {
   extraKeys: ExtraKey[]
   prices: PriceConfig
   autoRefreshSeconds: number
+  /** 「显示余额」开关：false 时 footer 入口与余额列表的金额一律掩码为 **（默认 true）。 */
+  showBalance: boolean
 }
 
 /** config-file 模块初始化依赖（由 index.ts 的 apply 注入）。 */
@@ -71,13 +73,14 @@ let writeTail: Promise<void> = Promise.resolve()
 
 /* ── 内部工具 ─────────────────────────────────────────────────── */
 
-/** 默认配置：空 key 列表 + 内置默认价格 + 自动刷新关闭。 */
+/** 默认配置：空 key 列表 + 内置默认价格 + 自动刷新关闭 + 显示余额开启。 */
 function defaultConfig(): PluginConfigFile {
   return {
     version: CONFIG_FILE_VERSION,
     extraKeys: [],
     prices: normalizePriceConfig(undefined),
     autoRefreshSeconds: 0,
+    showBalance: true,
   }
 }
 
@@ -97,6 +100,11 @@ function sanitizeKeys(parsed: unknown): ExtraKey[] {
 function sanitizeSeconds(raw: unknown): number {
   const n = typeof raw === 'number' ? raw : Number(String(raw ?? '0').trim())
   return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0
+}
+
+/** 把任意值规范化为布尔开关（仅接受字面 true/false，其余回退默认）。 */
+function sanitizeBool(raw: unknown, fallback: boolean): boolean {
+  return typeof raw === 'boolean' ? raw : fallback
 }
 
 /** 解析旧版 settings 的 JSON 字符串字段；空串/非法 → undefined。 */
@@ -218,6 +226,7 @@ export async function readPluginConfig(): Promise<PluginConfigFile> {
       extraKeys: sanitizeKeys(parsed['extraKeys']),
       prices: normalizePriceConfig(parsed['prices']),
       autoRefreshSeconds: sanitizeSeconds(parsed['autoRefreshSeconds']),
+      showBalance: sanitizeBool(parsed['showBalance'], true),
     }
   } catch {
     await backupCorruptFile().catch(() => undefined)
@@ -267,6 +276,7 @@ async function readFileConfig(): Promise<PluginConfigFile> {
       extraKeys: sanitizeKeys(parsed['extraKeys']),
       prices: normalizePriceConfig(parsed['prices']),
       autoRefreshSeconds: sanitizeSeconds(parsed['autoRefreshSeconds']),
+      showBalance: sanitizeBool(parsed['showBalance'], true),
     }
   } catch {
     await backupCorruptFile().catch(() => undefined)

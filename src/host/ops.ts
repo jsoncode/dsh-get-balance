@@ -16,7 +16,7 @@ import { listDeepseekProviders, listProviderBaseUrls } from './providers.ts'
 import { queryBalances } from './balance.ts'
 import { readPluginConfig, savePluginConfig } from './config-file.ts'
 import { computeCosts, normalizePriceConfig, type SessionsService } from './cost.ts'
-import { checkPluginUpdate, resetInstalledVersionCache } from './update.ts'
+import { checkPluginUpdate } from './update.ts'
 import { getPluginUpdateStatus, startPluginUpdate } from './plugin-update.ts'
 import type { ExtraKey, OpRequest, OpResult, PriceConfig } from './types.ts'
 
@@ -152,7 +152,8 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
       }
       case 'updateCheck': {
         // npm registry（keywords:dsh-get-balance）最新版 vs 被安装根目录
-        // package.json 版本；宿主进程内缓存 10 分钟，网络失败静默降级。
+        // package.json 版本；每次调用实时读盘 + 实时请求 registry（无时间
+        // 缓存，客户端每次页面刷新恰好触发一次），网络失败静默降级。
         const update = await checkPluginUpdate()
         return { ok: true, update }
       }
@@ -165,11 +166,9 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
           : { ok: false, code: 'spawn-failed', error: start.error ?? 'failed to spawn dsh' }
       }
       case 'pluginUpdateStatus': {
-        const status = getPluginUpdateStatus()
-        // 更新进程结束后使版本缓存失效：下一次 updateCheck 重读新版本号，
-        // 客户端据此隐藏「更新」胶囊。
-        if (status.done) resetInstalledVersionCache()
-        return { ok: true, status }
+        // 轮询当前更新进程状态与累计日志；版本读取已是实时（无缓存），
+        // 更新落盘后下一次 updateCheck 自然读到新版本号。
+        return { ok: true, status: getPluginUpdateStatus() }
       }
       default:
         return { ok: false, code: 'op-unknown', error: `unknown op: ${String(request.op)}` }

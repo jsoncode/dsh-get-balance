@@ -82,8 +82,8 @@ export interface BalanceModalStore {
   showBalanceStore: StoreState<boolean>
   useShowBalance(): boolean
   /**
-   * 插件更新信息：插件启动时经宿主 updateCheck op 查询一次
-   * （npm registry vs 安装根目录 package.json），hasUpdate=true 时
+   * 插件更新信息：插件加载时（即每次页面刷新）经宿主 updateCheck op 实时查询
+   * （npm registry vs 安装根目录 package.json，宿主无时间缓存），hasUpdate=true 时
    * footer 按钮最右侧显示【更新】小胶囊。
    */
   setUpdate(info: UpdateInfo): void

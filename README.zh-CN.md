@@ -21,7 +21,7 @@ DeepSeek Harness（dsh）余额与费用查询插件：
 | 会话头部按钮 | 会话头部 utilities | 实时「**当前会话 xxM \| ≈¥xx**」（token 紧凑缩写与金额均为绿色；数字变化为**上下轮播**动画）；点击即刷新；会话任务完成（宿主 running 回落）后自动刷新。会话中途可能切换 provider：按钮为**合并统计**，点击弹出**气泡弹框**逐 provider 列出（如 `ds-self 268K \| ≈¥0.41`），非官方行金额位显示「不计费」 |
 | 侧边栏入口 | footer.action | 「余额」按钮：余额靠右对齐（货币符号前缀、数字绿色、数字变化为**上下轮播**动画），**多账号以 `\|` 分隔逐段显示**（每段对应一个服务商/账号），**取不到余额的账号显示红色 `--`**（悬停提示原因）；时段收敛为小圆点（高峰红 / 空闲绿），悬停气泡提示完整信息「当前为高峰时段 全价计费」/「当前为空闲时段 半价计费」（价词着色：全价红 / 半价绿） |
 | 定时更新 | 弹框右上「定时更新」 | 按设定秒数自动刷新余额与费用；配置弹框（启动/停止互斥、输入框禁用）；间隔持久化 |
-| 附加 API Key | 弹框 · 余额 Tab 底部 | 手动添加不在 providers 配置中的 key，脱敏回显，持久化到 `$DSH_HOME/settings.yaml` |
+| 附加 API Key | 弹框 · 余额 Tab 底部 | 手动添加不在 providers 配置中的 key，脱敏回显，持久化到 `$DSH_HOME/dsh-get-balance.json` |
 
 ## 计费与判定口径
 
@@ -47,7 +47,9 @@ DeepSeek Harness（dsh）余额与费用查询插件：
 ```
 ├── src/host/*.ts       # 宿主半边：index.ts（入口）、providers.ts（服务商枚举、
 │                       #   官方域判定）、balance.ts、cost.ts（折叠 + 今日扫描 +
-│                       #   峰谷定价 + 官方过滤）、ops.ts（op 分发）、fence.ts、types.ts
+│                       #   峰谷定价 + 官方过滤）、ops.ts（op 分发）、
+│                       #   config-file.ts（插件配置文件读写 + 旧 settings 迁移）、
+│                       #   fence.ts、types.ts
 ├── src/client/*        # 浏览器半边：plugin.tsx（slots 注册 + 定时器）、
 │                       #   BalanceModal.tsx（三 tab 弹框）、HeaderButton.tsx
 │                       #   （会话头部按钮）、FooterButton.tsx（footer 入口）、
@@ -77,7 +79,37 @@ dsh --profile web                 # 启动
 ```
 
 插件无需静态配置；附加 key、价格档与定时间隔均在弹框内编辑并持久化到
-`$DSH_HOME/settings.yaml`。
+`$DSH_HOME/dsh-get-balance.json`。
+
+### 插件配置文件
+
+- 位置：`$DSH_HOME/dsh-get-balance.json`（与 `settings.yaml` 同目录）。
+- 内容（读取时各字段均可缺省，非法值回退默认）：
+
+  ```json
+  {
+    "version": 1,
+    "extraKeys": [ { "id": "k1", "label": "主账号", "apiKey": "sk-..." } ],
+    "prices": {
+      "tiers": [
+        { "id": "deepseek-v4-flash", "name": "deepseek-v4-flash", "currency": "CNY",
+          "match": "deepseek-v4-flash",
+          "peak": { "input": 3.0, "cacheRead": 0.10, "cacheWrite": 0, "output": 9.0 },
+          "offPeak": { "input": 1.5, "cacheRead": 0.05, "cacheWrite": 0, "output": 4.5 } }
+      ],
+      "timezoneOffsetMinutes": 480,
+      "peakWindows": [ { "start": "09:00", "end": "12:00" }, { "start": "14:00", "end": "18:00" } ],
+      "weekendOffPeak": false
+    },
+    "autoRefreshSeconds": 0
+  }
+  ```
+
+- 每次查询现读文件、保存时原子写入（临时文件 + rename），**外部手改立即生效**
+  （无需重启）；文件损坏时自动改名备份为 `dsh-get-balance.json.bak-<时间戳>`
+  并回退默认值。
+- 旧版本写入宿主 `settings.yaml` 的 `dsh-balance` 段数据会在首次运行时自动
+  迁移到该文件，之后不再读写宿主默认设置。
 
 ## 发布
 

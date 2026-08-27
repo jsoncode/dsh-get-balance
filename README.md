@@ -37,7 +37,7 @@ A balance & cost plugin for DeepSeek Harness:
   "Refresh" bypasses the cache.
 - **Extra API keys**: keys outside any providers config can be attached directly
   from the modal (label + key, masked echo), persisted to
-  `$DSH_HOME/settings.yaml`.
+  `$DSH_HOME/dsh-get-balance.json`.
 
 ### Cost tab — per-API-key breakdown
 
@@ -127,22 +127,55 @@ A balance & cost plugin for DeepSeek Harness:
   and the Start button are disabled; stopping re-enables them.
 - At each interval, balance & cost refresh automatically (the modal when open, the
   header button otherwise). The interval is persisted to
-  `$DSH_HOME/settings.yaml` (`autoRefreshJson`) and survives restarts.
+  `$DSH_HOME/dsh-get-balance.json` and survives restarts.
 
 ### Config / packaging
 
-- Schemastery `Config` + a settings namespace (`dsh-balance`): extra keys,
-  price config and auto-refresh interval persist to `$DSH_HOME/settings.yaml`.
+- Schemastery `Config` (no required options) + a plugin-owned config file
+  `$DSH_HOME/dsh-get-balance.json`: extra keys, price config and the auto-refresh
+  interval are persisted there (JSON, versioned), never into the host's
+  `settings.yaml`. Existing data stored in the old `dsh-balance` settings
+  namespace is migrated automatically on first run.
 - `dsh.bundle` + `dsh.client`(web) manifests; the official
   `deepseek-harness` project is never modified — everything rides existing slots
   and the HTTP / command channel.
+
+### Plugin config file
+
+- Location: `$DSH_HOME/dsh-get-balance.json` (next to `settings.yaml`).
+- Contents (all fields optional on read; invalid values fall back to defaults):
+
+  ```json
+  {
+    "version": 1,
+    "extraKeys": [ { "id": "k1", "label": "main", "apiKey": "sk-..." } ],
+    "prices": {
+      "tiers": [
+        { "id": "deepseek-v4-flash", "name": "deepseek-v4-flash", "currency": "CNY",
+          "match": "deepseek-v4-flash",
+          "peak": { "input": 3.0, "cacheRead": 0.10, "cacheWrite": 0, "output": 9.0 },
+          "offPeak": { "input": 1.5, "cacheRead": 0.05, "cacheWrite": 0, "output": 4.5 } }
+      ],
+      "timezoneOffsetMinutes": 480,
+      "peakWindows": [ { "start": "09:00", "end": "12:00" }, { "start": "14:00", "end": "18:00" } ],
+      "weekendOffPeak": false
+    },
+    "autoRefreshSeconds": 0
+  }
+  ```
+
+- It is read on every query and written atomically (temp file + rename) on save,
+  so **hand-editing takes effect immediately** (no restart). A corrupted file is
+  renamed to `dsh-get-balance.json.bak-<timestamp>` and defaults are used.
 
 ## Layout
 
 ```
 ├── src/host/*.ts       # host half: index.ts, providers.ts (enum + official check),
 │                       # balance.ts, cost.ts (fold + today scan + period pricing +
-│                       # official filter), ops.ts, fence.ts, types.ts
+│                       # official filter), ops.ts, config-file.ts (plugin config
+│                       # file read/write + legacy settings migration),
+│                       # fence.ts, types.ts
 ├── src/client/*        # browser half: plugin.tsx (slots + timer), BalanceModal.tsx,
 │                       # HeaderButton.tsx, FooterButton.tsx, rpc.ts, store.ts,
 │                       # i18n.ts, styles.ts, logo.ts
@@ -171,7 +204,7 @@ dsh --profile web                 # start
 ```
 
 No static config required: extra keys, price config and the auto-refresh interval
-are edited in the modal and persisted to `$DSH_HOME/settings.yaml`.
+are edited in the modal and persisted to `$DSH_HOME/dsh-get-balance.json`.
 
 ## Release
 

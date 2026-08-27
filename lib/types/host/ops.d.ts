@@ -5,25 +5,27 @@
  * providers / balance / cost / pricesGet / pricesSave / keysGet / keysSave /
  * autoRefreshGet / autoRefreshSave / updateCheck / pluginUpdateStart / pluginUpdateStatus。
  * 返回值恒为 OpResult 形状（ok=false 带 code/error），由调用方包信封。
+ *
+ * 插件持久数据（附加 key / 价格档 / 自动刷新间隔）读写 `$DSH_HOME/
+ * dsh-get-balance.json`（见 config-file.ts），不再写入宿主 settings。
  */
-import type { CredentialsService, SettingsScope, SettingsService } from './providers.ts';
+import type { CredentialsService, SettingsService } from './providers.ts';
 import { type SessionsService } from './cost.ts';
 import type { ExtraKey, OpRequest, OpResult, PriceConfig } from './types.ts';
 /** runOp 的全部依赖（由 index.ts 的 apply 注入）。 */
 export interface OpDeps {
     settings?: SettingsService;
     nsOf: (name: string) => unknown;
-    scope: SettingsScope | null;
     /** 按请求懒取 credentials 服务：apply 时刻不可用也能在请求时拿到（服务晚启动兜底）。 */
     getCredentials?: () => CredentialsService | undefined;
     sessions?: SessionsService;
 }
 /** 读取用户附加 key 列表。 */
-export declare function readExtraKeys(deps: OpDeps): ExtraKey[];
-/** 读取完整价格配置：用户已保存 > 内置默认；旧版扁平档位数组自动迁移。 */
-export declare function readPriceConfig(deps: OpDeps): PriceConfig;
+export declare function readExtraKeys(): Promise<ExtraKey[]>;
+/** 读取完整价格配置（用户已保存 > 内置默认；旧版扁平档位数组自动迁移）。 */
+export declare function readPriceConfig(): Promise<PriceConfig>;
 /** 读取定时自动刷新间隔（秒，0 = 关闭）。 */
-export declare function readAutoSeconds(deps: OpDeps): number;
+export declare function readAutoSeconds(): Promise<number>;
 /**
  * 执行一个 op。
  * @param deps - apply 注入的宿主依赖。

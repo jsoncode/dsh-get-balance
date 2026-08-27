@@ -6,7 +6,7 @@
  *    deepseek）的条目，凭据引用为其 `apiKeyEnv`；
  * 2. `llm-deepseek` 官方路由插件段（route 固定 deepseek-official），
  *    apiKeyEnv 缺省 DEEPSEEK_API_KEY，baseURL 缺省官方 API；
- * 3. 本插件 settings 段里用户手动附加的 key（extraKeysJson）。
+ * 3. 插件配置文件（$DSH_HOME/dsh-get-balance.json）里用户手动附加的 key。
  *
  * 真实 key 经宿主 credentials 服务解析（`resolve(apiKeyEnv)`），解析结果只留在
  * 宿主半边，浏览器侧只见脱敏串。
@@ -25,11 +25,6 @@ export interface CredentialsService {
         value: string;
         source?: string;
     } | undefined>;
-}
-/** settings namespace 注册返回的 owner scope 最小视图。 */
-export interface SettingsScope {
-    get(): Record<string, unknown>;
-    update(value: Record<string, unknown>): Promise<void> | void;
 }
 /** 脱敏一个 API key：保留头 5 与尾 4，过短全掩。 */
 export declare function maskApiKey(key: string): string;
@@ -55,7 +50,7 @@ export declare function listProviderBaseUrls(settings: SettingsService | undefin
  * @param settings - 宿主 settings 服务（可能缺失）。
  * @param nsOf - namespace 品牌化函数（settingsNamespace）。
  * @param credentials - 宿主 credentials 服务（可能缺失）。
- * @param extraKeys - 插件 settings 段的附加 key 列表。
+ * @param extraKeys - 插件配置文件（$DSH_HOME/dsh-get-balance.json）的附加 key 列表。
  * @returns 按「解析 key 去重 + 路由去重」后的服务商列表。
  */
 export declare function listDeepseekProviders(settings: SettingsService | undefined, nsOf: (name: string) => unknown, credentials: CredentialsService | undefined, extraKeys: readonly ExtraKey[]): Promise<ProviderEntry[]>;

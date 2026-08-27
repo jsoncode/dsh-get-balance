@@ -1,9 +1,9 @@
 /**
  * dsh-get-balance —— 宿主半边（可发布组合包，无硬编码路径）
  *
- * - settings namespace（dsh-balance）持久化：用户附加的 API key 列表
- *   （extraKeysJson）与价格档位（pricesJson），均以 JSON 字符串存储
- *   （规避 settings 对数组的深冻结 + schemastery 原地改写）；
+ * - 插件持久数据（附加 key / 价格档 / 自动刷新间隔）存独立配置文件
+ *   $DSH_HOME/dsh-get-balance.json（config-file.ts），不再写入宿主默认设置
+ *   settings.yaml；首次运行时若检测到旧 dsh-balance settings 段数据会自动迁移；
  * - `/dsh-balance/api` HTTP 路由（webServer 注册 + 信任围栏）：浏览器半边
  *   经 fetch 调用，参数为 JSON（{ op: 'providers|balance|cost|pricesGet|pricesSave|keysGet|keysSave' }），
  *   结果以 JSON 信封回传。请求不进入对话命令通道，页面不会出现 command 节点；
@@ -20,10 +20,11 @@ import { fileURLToPath } from 'node:url'
 import Schema from '@deepseek-ai/schemastery'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { Context } from '@deepseek-ai/cordis'
+import { initConfigFile } from './config-file.ts'
 import { isTrustedApiRequest } from './fence.ts'
 import { runOp, type OpDeps } from './ops.ts'
 import type { SessionsService } from './cost.ts'
-import type { CredentialsService, SettingsScope, SettingsService } from './providers.ts'
+import type { CredentialsService, SettingsService } from './providers.ts'
 import type { OpRequest } from './types.ts'
 
 export const name = 'dsh-get-balance'
@@ -32,13 +33,6 @@ export const inject = ['shell', 'settings', 'commands']
 /* ── 配置（cordis.yml config 段；本插件无必填配置）────────── */
 
 export const Config = Schema.object({})
-
-/** 运行时 settings namespace：附加 key 与价格档以 JSON 字符串持久化到 $DSH_HOME/settings.yaml。 */
-const BalanceSettingsSchema = Schema.object({
-  extraKeysJson: Schema.string().default('[]'),
-  pricesJson: Schema.string().default(''),
-  autoRefreshJson: Schema.string().default('0'),
-})
 
 /** 宿主 commands 服务最小视图。 */
 interface CommandsService {
@@ -84,18 +78,14 @@ export function apply(ctx: Context, _config: Record<string, never>) {
   // 可能晚于本插件启动，捕获一次会永久拿不到（resolveApiKey 恒为 undefined）。
   const sessions = ctx.get<SessionsService>('sessions')
 
-  // settings namespace：附加 key 与价格档以 JSON 字符串存储。
-  let scope: SettingsScope | null = null
-  if (settings !== undefined) {
-    scope = settings.register(settingsNamespace('dsh-balance'), BalanceSettingsSchema, {
-      base: { extraKeysJson: '[]', pricesJson: '' },
-    }) as SettingsScope
-  }
+  // 插件持久数据（附加 key / 价格档 / 自动刷新间隔）走独立配置文件
+  // $DSH_HOME/dsh-get-balance.json；初始化会检测并一次性迁移旧的
+  // dsh-balance settings 段数据（迁移后不再注册该命名空间）。
+  initConfigFile({ ctx, settings })
 
   const deps: OpDeps = {
     ...settings === undefined ? {} : { settings },
     nsOf: settingsNamespace,
-    scope,
     getCredentials: () => ctx.get<CredentialsService>('credentials'),
     ...sessions === undefined ? {} : { sessions },
   }

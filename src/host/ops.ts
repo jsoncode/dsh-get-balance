@@ -5,69 +5,44 @@
  * providers / balance / cost / pricesGet / pricesSave / keysGet / keysSave /
  * autoRefreshGet / autoRefreshSave / updateCheck / pluginUpdateStart / pluginUpdateStatus。
  * 返回值恒为 OpResult 形状（ok=false 带 code/error），由调用方包信封。
+ *
+ * 插件持久数据（附加 key / 价格档 / 自动刷新间隔）读写 `$DSH_HOME/
+ * dsh-get-balance.json`（见 config-file.ts），不再写入宿主 settings。
  */
 
-import type { CredentialsService, SettingsScope, SettingsService } from './providers.ts'
+import type { CredentialsService, SettingsService } from './providers.ts'
 import { listDeepseekProviders, listProviderBaseUrls } from './providers.ts'
 import { queryBalances } from './balance.ts'
+import { readPluginConfig, savePluginConfig } from './config-file.ts'
 import { computeCosts, normalizePriceConfig, type SessionsService } from './cost.ts'
 import { checkPluginUpdate, resetInstalledVersionCache } from './update.ts'
 import { getPluginUpdateStatus, startPluginUpdate } from './plugin-update.ts'
-import type { ExtraKey, OpRequest, OpResult, PriceConfig, PriceTier } from './types.ts'
+import type { ExtraKey, OpRequest, OpResult, PriceConfig } from './types.ts'
 
 /** runOp 的全部依赖（由 index.ts 的 apply 注入）。 */
 export interface OpDeps {
   settings?: SettingsService
   nsOf: (name: string) => unknown
-  scope: SettingsScope | null
   /** 按请求懒取 credentials 服务：apply 时刻不可用也能在请求时拿到（服务晚启动兜底）。 */
   getCredentials?: () => CredentialsService | undefined
   sessions?: SessionsService
 }
 
-/* ── settings 段读写（JSON 字符串持久化）──────────────────── */
-
-function readJson<T>(scope: SettingsScope | null, field: string, fallback: T): T {
-  if (scope === null) return fallback
-  const value = scope.get()
-  const raw = value?.[field]
-  if (typeof raw !== 'string' || raw.length === 0) return fallback
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    return fallback
-  }
-}
-
-async function writeJson(scope: SettingsScope | null, field: string, value: unknown): Promise<void> {
-  if (scope === null) return
-  await scope.update({ [field]: JSON.stringify(value) })
-}
+/* ── 配置文件读写（$DSH_HOME/dsh-get-balance.json）────────────── */
 
 /** 读取用户附加 key 列表。 */
-export function readExtraKeys(deps: OpDeps): ExtraKey[] {
-  const parsed = readJson<unknown>(deps.scope, 'extraKeysJson', [])
-  if (!Array.isArray(parsed)) return []
-  return parsed
-    .filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object')
-    .map((item, index) => ({
-      id: typeof item.id === 'string' && item.id.length > 0 ? item.id : `k${index}`,
-      label: typeof item.label === 'string' ? item.label : '',
-      apiKey: typeof item.apiKey === 'string' ? item.apiKey : '',
-    }))
+export async function readExtraKeys(): Promise<ExtraKey[]> {
+  return (await readPluginConfig()).extraKeys
 }
 
-/** 读取完整价格配置：用户已保存 > 内置默认；旧版扁平档位数组自动迁移。 */
-export function readPriceConfig(deps: OpDeps): PriceConfig {
-  const parsed = readJson<unknown>(deps.scope, 'pricesJson', undefined)
-  return normalizePriceConfig(parsed)
+/** 读取完整价格配置（用户已保存 > 内置默认；旧版扁平档位数组自动迁移）。 */
+export async function readPriceConfig(): Promise<PriceConfig> {
+  return (await readPluginConfig()).prices
 }
 
 /** 读取定时自动刷新间隔（秒，0 = 关闭）。 */
-export function readAutoSeconds(deps: OpDeps): number {
-  const raw = readJson<unknown>(deps.scope, 'autoRefreshJson', '0')
-  const n = typeof raw === 'number' ? raw : Number(String(raw).trim())
-  return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0
+export async function readAutoSeconds(): Promise<number> {
+  return (await readPluginConfig()).autoRefreshSeconds
 }
 
 /* ── op 分发 ──────────────────────────────────────────────── */
@@ -84,14 +59,14 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
       case 'providers': {
         // 按请求懒取 credentials：服务晚启动也能在请求时拿到。
         const credentials = deps.getCredentials?.()
-        const entries = await listDeepseekProviders(deps.settings, deps.nsOf, credentials, readExtraKeys(deps))
+        const entries = await listDeepseekProviders(deps.settings, deps.nsOf, credentials, await readExtraKeys())
         // 真实 key 不出宿主：只回脱敏串。
         const safe = entries.map(({ apiKey: _apiKey, ...rest }) => rest)
         return { ok: true, providers: safe, credentialsPresent: credentials !== undefined }
       }
       case 'balance': {
         const credentials = deps.getCredentials?.()
-        const entries = await listDeepseekProviders(deps.settings, deps.nsOf, credentials, readExtraKeys(deps))
+        const entries = await listDeepseekProviders(deps.settings, deps.nsOf, credentials, await readExtraKeys())
         const balances = await queryBalances(entries, request.refresh === true)
         return { ok: true, balances }
       }
@@ -100,11 +75,11 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
         // 会话解析（内存 → 磁盘兜底）+ 子代理血缘并入「本会话」在 computeCosts 内部完成；
         // cwd 缺省回退 process.cwd()（computeCosts 内部优先用会话 header 的 cwd）。
         const providerBaseUrls = listProviderBaseUrls(deps.settings, deps.nsOf)
-        const result = await computeCosts(sessionId, deps.sessions, readPriceConfig(deps), process.cwd(), providerBaseUrls)
+        const result = await computeCosts(sessionId, deps.sessions, await readPriceConfig(), process.cwd(), providerBaseUrls)
         return { ok: true, cost: result }
       }
       case 'pricesGet': {
-        return { ok: true, config: readPriceConfig(deps) }
+        return { ok: true, config: await readPriceConfig() }
       }
       case 'pricesSave': {
         const raw = request.config
@@ -115,12 +90,12 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
         if (config.tiers.length === 0) {
           return { ok: false, code: 'params-invalid', error: 'keep at least one price tier' }
         }
-        await writeJson(deps.scope, 'pricesJson', config)
+        await savePluginConfig({ prices: config })
         return { ok: true, config }
       }
       case 'keysGet': {
         // 脱敏回显；apiKey 留空表示「保存时保留原值」。
-        const keys = readExtraKeys(deps).map((key) => ({
+        const keys = (await readExtraKeys()).map((key) => ({
           id: key.id,
           label: key.label,
           apiKeyMasked: maskKeyForClient(key.apiKey),
@@ -131,7 +106,7 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
         if (!Array.isArray(request.keys)) {
           return { ok: false, code: 'params-invalid', error: 'keys must be an array' }
         }
-        const previous = readExtraKeys(deps)
+        const previous = await readExtraKeys()
         const next: ExtraKey[] = request.keys.map((item, index) => {
           const id = typeof item.id === 'string' && item.id.length > 0 ? item.id : `k${Date.now().toString(36)}-${index}`
           const incoming = typeof item.apiKey === 'string' ? item.apiKey.trim() : ''
@@ -143,11 +118,11 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
             apiKey: incoming.length > 0 ? incoming : (kept?.apiKey ?? ''),
           }
         }).filter((key) => key.apiKey.length > 0)
-        await writeJson(deps.scope, 'extraKeysJson', next)
+        await savePluginConfig({ extraKeys: next })
         return { ok: true, keys: next.map((key) => ({ id: key.id, label: key.label, apiKeyMasked: maskKeyForClient(key.apiKey) })) }
       }
       case 'autoRefreshGet': {
-        return { ok: true, seconds: readAutoSeconds(deps) }
+        return { ok: true, seconds: await readAutoSeconds() }
       }
       case 'autoRefreshSave': {
         const seconds = typeof request.seconds === 'number' && Number.isFinite(request.seconds)
@@ -156,7 +131,7 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
         if (!Number.isFinite(seconds) || seconds < 0 || seconds > 86400) {
           return { ok: false, code: 'params-invalid', error: 'seconds must be 0..86400' }
         }
-        await writeJson(deps.scope, 'autoRefreshJson', String(seconds))
+        await savePluginConfig({ autoRefreshSeconds: seconds })
         return { ok: true, seconds }
       }
       case 'updateCheck': {

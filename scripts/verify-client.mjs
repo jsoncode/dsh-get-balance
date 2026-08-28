@@ -38,8 +38,13 @@ const seed = {
   '@deepseek-ai/dsh-client-ui-primitives': { Modal: () => null, Tooltip: () => null },
 }
 
+// 浏览器全局最小桩：bundle 内联的 echarts/zrender 在模块初始化时做环境探测
+// （navigator.userAgent / typeof document 守卫），模拟宿主 Web 环境避免 ReferenceError；
+// 本 harness 只校验模块形状，不渲染 UI，document 置 undefined 即可。
 const sandbox = {
   window,
+  navigator: { userAgent: 'node' },
+  document: undefined,
   console,
   setTimeout,
   clearTimeout,

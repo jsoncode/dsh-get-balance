@@ -131,11 +131,12 @@ export const css = [
   // 二级平台面板：grid stacking（与弹框主体同模式），平台增多后切换二级 tab 不跳动
   '.dshb-subpanes{display:grid;min-width:0}',
   '.dshb-subpanes>*{grid-area:1/1;min-width:0}',
-  // 弹框主体：grid stacking —— 三个 tab 面板叠放同一格，隐藏面板仍占位参与布局，
-  // 弹框高度恒等于最高面板（价格设置页），保证其不出现滚动、切换 tab 不跳动
-  '.dshb-modal-body{flex:1;overflow-y:auto;padding:16px 18px;min-width:0;min-height:0;display:grid}',
+  // 弹框主体：grid stacking —— 三个 tab 面板叠放同一格；隐藏面板不占高度
+  // （height:0 + overflow 裁剪），激活面板决定弹框高度，切换 tab 不会出现
+  // 永久超高弹框（费用页图表区很高，由 body 内部滚动承载）。
+  '.dshb-modal-body{flex:1;overflow-y:auto;padding:16px 18px;min-width:0;min-height:0;max-height:70vh;display:grid}',
   '.dshb-modal-body>*{grid-area:1/1;min-width:0}',
-  '.dshb-pane-off{visibility:hidden;pointer-events:none}',
+  '.dshb-pane-off{visibility:hidden;pointer-events:none;height:0;overflow:hidden}',
   '.dshb-modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--dsw-alias-border-l1,#eee);flex:none;flex-wrap:wrap}',
   '.dshb-modal-footer .dshb-msg{margin:0 auto 0 0;font-size:12px}',
   // 余额 tab：「显示余额」滑动开关行（位于余额列表上方）
@@ -178,22 +179,6 @@ export const css = [
   '.dshb-key-row .dshb-chip{flex:none}',
   '.dshb-key-mask{flex:1;min-width:0;font-size:12px;color:var(--dsw-alias-label-secondary,#888);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
   '.dshb-key-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto auto;gap:8px;align-items:center;margin-top:8px}',
-  // 费用 tab：表格（行为 API Key 组 × 四类别，token 列 rowSpan 合并；首组为合计）
-  '.dshb-cost-table{min-width:640px}',
-  '.dshb-cost-table th{white-space:nowrap}',
-  '.dshb-cost-table .dshb-cost-num{text-align:right;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-variant-numeric:tabular-nums;white-space:nowrap}',
-  '.dshb-cost-table .dshb-cost-cat{white-space:nowrap;color:var(--dsw-alias-label-secondary,#888);font-size:12px}',
-  '.dshb-cost-key{vertical-align:top;min-width:110px}',
-  // 第一列：provider 名称 + 官方/非官方 tag 一行，脱敏 key 一行
-  '.dshb-cost-key-name-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}',
-  '.dshb-cost-key-name-row .dshb-chip{flex:none}',
-  '.dshb-cost-key-name{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary,#222);word-break:break-all}',
-  // 第一列主体：脱敏 token（大字等宽）
-  '.dshb-cost-key-token{margin-top:4px;font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary,#222);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}',
-  '.dshb-cost-key-label{margin-top:2px;font-size:11px;color:var(--dsw-alias-label-secondary,#888)}',
-  '.dshb-cost-key-mask{margin-top:2px;font-size:11px;color:var(--dsw-alias-label-tertiary,#999);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}',
-  '.dshb-cost-amount-cell{color:#16a34a;font-weight:500}',
-  '.dshb-cost-total>td{background:var(--dsw-alias-bg-layer-2,#fafafa)}',
   // 会话头部工具区按钮 + 定时更新弹框
   '.dshb-header-btn{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.08));color:var(--dsw-alias-label-primary);border-radius:999px;padding:2px 10px;font-size:11px;font-family:inherit;white-space:nowrap;cursor:pointer;line-height:1.6}',
   '.dshb-header-btn:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.16))}',
@@ -220,8 +205,24 @@ export const css = [
   '.dshb-timing-field .dshb-input{width:90px}',
   '.dshb-timing-active{margin-top:8px;font-size:11px;color:#16a34a}',
   '.dshb-timing-actions{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}',
-  '.dshb-cost-tier{margin-top:12px;font-size:12px;color:var(--dsw-alias-label-secondary,#888)}',
-  '.dshb-cost-tier b{color:var(--dsw-alias-label-primary,#222);font-weight:500}',
+  // 费用 tab（图表版）：筛选行
+  '.dshb-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:10px}',
+  '.dshb-filter{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--dsw-alias-label-secondary,#888);white-space:nowrap}',
+  '.dshb-select{box-sizing:border-box;max-width:200px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#222);border:1px solid var(--dsw-alias-border-l2,#ccc);border-radius:8px;padding:4px 8px;font-size:12px;font-family:inherit;cursor:pointer}',
+  '.dshb-select:focus{outline:none;border-color:var(--dsw-alias-brand-primary,#1668e3)}',
+  '.dshb-segs{display:inline-flex;gap:4px;flex-wrap:wrap}',
+  '.dshb-seg{padding:3px 10px;border:1px solid var(--dsw-alias-border-l2,#ccc);border-radius:999px;background:transparent;color:var(--dsw-alias-label-secondary,#666);font-size:12px;cursor:pointer;white-space:nowrap;font-family:inherit}',
+  '.dshb-seg:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.1))}',
+  '.dshb-seg-active{background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#1668e3));border-color:transparent;color:var(--dsw-alias-label-primary-foreground,#fff);font-weight:500}',
+  // 费用 tab（图表版）：图表区（前两张 2 列并排，后三张全宽）
+  '.dshb-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}',
+  '.dshb-chart{min-width:0;border:1px solid var(--dsw-alias-border-l1,#eee);border-radius:10px;padding:10px 12px;background:var(--dsw-alias-bg-layer-2,#fafafa)}',
+  '.dshb-chart-wide{grid-column:1/-1}',
+  '.dshb-chart-title{font-size:13px;font-weight:600;margin:0 0 6px;color:var(--dsw-alias-label-primary,#222)}',
+  '.dshb-chart-box{height:220px;min-width:0}',
+  '.dshb-chart-tip{font-size:11px;color:var(--dsw-alias-label-tertiary,#999);margin:4px 0 0;line-height:1.4}',
+  '.dshb-series-empty{padding:36px 16px;text-align:center;color:var(--dsw-alias-label-secondary,#888);font-size:13px}',
+  '.dshb-series-error{display:flex;align-items:center;gap:8px;padding:12px;font-size:12px;color:var(--dsw-alias-state-error-primary,#d33)}',
   // 价格 tab：档位表格（行内编辑）
   '.dshb-table{width:100%;border-collapse:collapse;font-size:13px}',
   '.dshb-table th{font-size:12px;font-weight:500;color:var(--dsw-alias-label-secondary,#666);text-align:left;padding:6px 8px;border-bottom:1px solid var(--dsw-alias-border-l1,#eee);white-space:nowrap}',

@@ -28,7 +28,7 @@
  * 对应时段。(uncachedInput*input + cacheRead*cacheRead + cacheWrite*cacheWrite
  * + output*output) / 1e6
  */
-import type { CostResult, PriceConfig, PricePeriodPrices, PriceTier, TimeWindow } from './types.ts';
+import type { CostResult, PriceConfig, PricePeriodPrices, PriceTier, TimeWindow, UsageBuckets } from './types.ts';
 /** 默认时区偏移：北京时间 UTC+8（分钟）。 */
 export declare const DEFAULT_TIMEZONE_OFFSET_MINUTES = 480;
 /** 默认高峰时段窗口（官方口径：北京时间 9:00–12:00、14:00–18:00；其余为空闲）。 */
@@ -100,10 +100,16 @@ export declare function periodPricesOf(tier: PriceTier, timeMs: number, config: 
  * @param prices - 价格档列表（空列表返回 undefined）。
  */
 export declare function matchTier(model: string | undefined, prices: readonly PriceTier[]): PriceTier | undefined;
+/** 按一组单价计费（每百万 tokens 单价）。 */
+export declare function costOf(buckets: UsageBuckets, period: PricePeriodPrices | undefined): number;
 /** 宿主 sessions 服务最小视图（内存中的存活会话；已结束/已注销的会话取不到）。 */
 export interface SessionsService {
     get(id: string): SessionLike | undefined;
 }
+/**
+ * 解析日志事件行（跳过首行 header）为 SessionEventLike[]（与内存会话同一视图）。
+ */
+export declare function parseLogEvents(text: string): SessionEventLike[];
 /**
  * 计算一个会话的四项费用（最近一次提问 / 本会话 / 今日·本项目 / 今日·全部）。
  * 会话解析链：内存存活会话（sessions.get）优先，磁盘日志兜底（已结束的
@@ -117,5 +123,10 @@ export interface SessionsService {
  * @param fallbackCwd - 会话 header 无 cwd 时「本项目」判定的 cwd（缺省 process.cwd()）。
  */
 export declare function computeCosts(sessionId: string, sessions: SessionsService | undefined, config: PriceConfig, fallbackCwd: string, providerBaseUrls?: Record<string, string>): Promise<CostResult>;
+/**
+ * 解压一个日志文件：zstd 一律按帧魔数切分逐帧解压（zstdDecompressSync
+ * 对多帧文件会静默丢弃首帧之后的帧，不能整包直解）；明文直接返回。
+ */
+export declare function decodeLog(path: string, isZstd: boolean): string | undefined;
 export {};
 //# sourceMappingURL=cost.d.ts.map

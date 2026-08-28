@@ -4,16 +4,16 @@
  * 所有余额相关的显示与设置都收敛在此弹框：
  * 1. 余额：DeepSeek 服务商列表（来源标签、脱敏 key、总/赠送余额），
  *    每行独立状态；底部「附加 API Key」管理不在 providers 配置中的 key；
- * 2. 费用：表格 —— 行为 API Key（token 列合并四行）× 类别
- *    （最近一次提问 / 本会话 / 今日·本项目 / 今日·全部），
- *    列为 未命中输入 / 缓存命中输入 / 输出 / 命中率 / 预估费用，首组为合计；
+ * 2. 费用：筛选器（API Key / 平台 / 模型 / 时间）+ 五张 ECharts 堆叠柱状图
+ *    （费用 / Token 总量 / 工作区 / 缓存比例 / 工具占比），见 CostTab.tsx；
  * 3. 价格设置：二级平台 tab（当前仅 DeepSeek）—— 时段配置 + 价格档行内编辑 + 增删，
  *    后续新增其他平台定价时在 PRICE_PLATFORMS 加一项即可。
  */
 
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { RunFn } from '../rpc.ts'
-import { fmtAmount, fmtTokens, t, tErr, zhNumeral } from '../i18n.ts'
+import { fmtAmount, t, tErr, zhNumeral } from '../i18n.ts'
+import { CostTab } from './CostTab.tsx'
 
 /* ── 宿主载荷的最小读取形状 ───────────────────────────────── */
 
@@ -160,43 +160,10 @@ const METRIC_GROUPS: Array<{ labelKey: string; field: 'input' | 'cacheRead' | 'o
   { labelKey: 'priceOutput', field: 'output' },
 ]
 
-/** 费用表格的四个统计类别（行）：最近一次提问 / 本会话 / 今日·本项目 / 今日·全部。 */
-const COST_ROWS: Array<{ labelKey: string; pick: (c: CostResultView) => CostEntryView | undefined }> = [
-  { labelKey: 'costLastTurn', pick: (c) => c.lastTurn },
-  { labelKey: 'costSession', pick: (c) => c.session },
-  { labelKey: 'costTodayProject', pick: (c) => c.todayProject },
-  { labelKey: 'costTodayAll', pick: (c) => c.todayAll },
-]
-
 /** 价格设置内的平台 tab 清单（顺序即展示顺序；新增平台 = 加一项 + 一个 render 函数）。 */
 const PRICE_PLATFORMS: Array<{ key: PricePlatform; labelKey: string }> = [
   { key: 'deepseek', labelKey: 'tabPlatformDeepseek' },
 ]
-
-/** 全零四桶（某类别无该 Key 用量时展示用）。 */
-const ZERO_BUCKETS: BucketsView = { uncachedInput: 0, cacheRead: 0, cacheWrite: 0, output: 0 }
-
-/** 四桶 token 总数。 */
-function bucketsSum(b: BucketsView): number {
-  return b.uncachedInput + b.cacheRead + b.cacheWrite + b.output
-}
-
-/**
- * 缓存命中率（%）：缓存命中 token 占全部输入侧 token
- * （未命中 + 命中 + 写入）的比例；无输入时返回 null。
- */
-function cacheHitRate(b: BucketsView): number | null {
-  const inputSide = b.uncachedInput + b.cacheRead + b.cacheWrite
-  if (inputSide <= 0) return null
-  return (b.cacheRead / inputSide) * 100
-}
-
-/** 命中率文案：97.3%（一位小数，整数省略小数位）；无输入时为 —。 */
-function fmtRate(rate: number | null): string {
-  if (rate === null) return '—'
-  const s = rate.toFixed(1)
-  return (s.endsWith('.0') ? s.slice(0, -2) : s) + '%'
-}
 
 /** 把 UTC 偏移小时数格式化为时区名（zh：零时区 / 东八区 / 西五区；en：UTC±0 / UTC+8 / UTC-5）。 */
 function formatTimezone(offsetHours: number): string {
@@ -231,6 +198,8 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
   // 费用 tab
   const [cost, setCost] = useState<CostResultView | null>(null)
   const [costLoading, setCostLoading] = useState(false)
+  /** 手动刷新请求计数：头部「刷新」按钮自增，CostTab 监听后重新请求 costSeries。 */
+  const [costReload, setCostReload] = useState(0)
   // 价格 tab
   const [prices, setPrices] = useState<PriceView[] | null>(null)
   const [windowCfg, setWindowCfg] = useState<PriceWindowView>({ timezoneOffsetMinutes: 480, peakWindows: [], weekendOffPeak: false })
@@ -553,138 +522,17 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
     return { label: provider }
   }
 
-  /** 某类别下某 API Key 的用量条目（无则 undefined）。 */
-  const keyEntryOf = (entry: CostEntryView | undefined, provider: string): KeyCostEntryView | undefined =>
-    entry?.byKey.find((k) => k.provider === provider)
-
-  /** 官方判定：优先按配置的 baseURL 域名（与宿主同规则，别名路由如 ds-self 也算官方）；
-   *  未在配置中的路由回退到用量分组的官方标志。 */
-  const officialOf = (route: string): boolean => {
-    const hit = (providers ?? []).find((p) => providerMatches(p, route))
-    if (hit !== undefined) {
-      try {
-        return new URL(hit.baseUrl).hostname.toLowerCase() === 'api.deepseek.com'
-      } catch {
-        return false
-      }
-    }
-    if (cost === null) return false
-    return COST_ROWS.some((rowDef) => keyEntryOf(rowDef.pick(cost), route)?.official === true)
-  }
-
-  /** 表格一行的数值单元格：分类 + 未命中输入 / 缓存命中输入 / 输出 / 命中率 / 预估费用。 */
-  const costRowCells = (catLabel: string, buckets: BucketsView, amount: ReactNode) => (
-    <>
-      <td className="dshb-cost-cat">{catLabel}</td>
-      <td className="dshb-cost-num">{fmtTokens(buckets.uncachedInput)}</td>
-      <td className="dshb-cost-num">{fmtTokens(buckets.cacheRead)}</td>
-      <td className="dshb-cost-num">{fmtTokens(buckets.output)}</td>
-      <td className="dshb-cost-num">{fmtRate(cacheHitRate(buckets))}</td>
-      <td className="dshb-cost-num dshb-cost-amount-cell">{amount}</td>
-    </>
+  /** 费用 tab（图表版）：筛选器 + 五张 ECharts 图（CostTab 自管数据加载与刷新）。 */
+  const renderCostTab = () => (
+    <CostTab
+      run={run}
+      getSession={getSession}
+      tick={tick}
+      reloadTick={costReload}
+      metaOf={providerMeta}
+      active={tab === 'cost'}
+    />
   )
-
-  const renderCostTab = () => {
-    if (cost === null) return <div className="dshb-spinner" />
-    // 1) 有用量的 API Key（按四类 token 总和降序）。
-    const sums = new Map<string, number>()
-    for (const rowDef of COST_ROWS) {
-      for (const k of rowDef.pick(cost)?.byKey ?? []) {
-        sums.set(k.provider, (sums.get(k.provider) ?? 0) + bucketsSum(k.buckets))
-      }
-    }
-    const providerList = [...sums.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p)
-    // 2) 与余额 Tab 对齐：把全部已配置 provider 也列出（未用量者补在尾部，显示 0 用量）。
-    //    会话事件里的 provider 是路由 key（如 ds-self），与 providers 条目 id
-    //    （pi-ai:ds-self / llm-deepseek:deepseek-official）按前缀/名称匹配。
-    const listed = new Set(providerList)
-    for (const p of providers ?? []) {
-      const route = p.id.replace(/^(pi-ai|llm-deepseek|extra):/, '')
-      if (listed.has(route)) continue
-      if ([...listed].some((r) => providerMatches(p, r))) continue
-      listed.add(route)
-      providerList.push(route)
-    }
-    return (
-      <div>
-        <p className="dshb-hint">{t('costHint')}</p>
-        <div className="dshb-price-scroll">
-          <table className="dshb-table dshb-cost-table">
-            <thead>
-              <tr>
-                <th>{t('costColToken')}</th>
-                <th>{t('costColCategory')}</th>
-                <th className="dshb-cost-num">{t('costColUncached')}</th>
-                <th className="dshb-cost-num">{t('costColCacheRead')}</th>
-                <th className="dshb-cost-num">{t('tokensOutput')}</th>
-                <th className="dshb-cost-num">{t('hitRate')}</th>
-                <th className="dshb-cost-num">{t('costEstAmount')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* 合计组：四个类别的全量汇总（token 列同样合并四行） */}
-              {COST_ROWS.map((rowDef, ri) => {
-                const entry = rowDef.pick(cost)
-                return (
-                  <tr key={'total-' + rowDef.labelKey} className="dshb-cost-total">
-                    {ri === 0
-                      ? (
-                        <td className="dshb-cost-key" rowSpan={COST_ROWS.length}>
-                          <div className="dshb-cost-key-name">{t('costTotal')}</div>
-                        </td>
-                      )
-                      : null}
-                    {costRowCells(
-                      t(rowDef.labelKey),
-                      entry?.buckets ?? ZERO_BUCKETS,
-                      entry !== undefined ? '≈' + fmtAmount(entry.amount) + ' ' + entry.currency : '—',
-                    )}
-                  </tr>
-                )
-              })}
-              {/* 每个 API Key 一组：token 列合并四行，费用仅官方 Key 计算 */}
-              {providerList.map((p) => {
-                const meta = providerMeta(p)
-                const official = officialOf(p)
-                return COST_ROWS.map((rowDef, ri) => {
-                  const kc = keyEntryOf(rowDef.pick(cost), p)
-                  const amount = kc === undefined
-                    ? '—'
-                    : kc.official
-                      ? '≈' + fmtAmount(kc.amount) + ' ' + kc.currency
-                      : <span className="dshb-chip">{t('notBilled')}</span>
-                  return (
-                    <tr key={p + '-' + rowDef.labelKey}>
-                      {ri === 0
-                        ? (
-                          /* 第一列：provider 名称 + 官方/非官方 tag 一行，脱敏 key 一行 */
-                          <td className="dshb-cost-key" rowSpan={COST_ROWS.length}>
-                            <div className="dshb-cost-key-name-row">
-                              <span className="dshb-cost-key-name" title={p}>{meta.label}</span>
-                              <span className={'dshb-chip' + (official ? ' dshb-chip-brand' : '')}>
-                                {official ? t('chipOfficial') : t('chipNonOfficial')}
-                              </span>
-                            </div>
-                            {meta.masked !== undefined
-                              ? <div className="dshb-cost-key-token" title={p}>{meta.masked}</div>
-                              : null}
-                          </td>
-                        )
-                        : null}
-                      {costRowCells(t(rowDef.labelKey), kc?.buckets ?? ZERO_BUCKETS, amount)}
-                    </tr>
-                  )
-                })
-              })}
-            </tbody>
-          </table>
-        </div>
-        {cost.sessionTier !== undefined
-          ? <div className="dshb-cost-tier">{t('costTier')}：<b>{cost.sessionTier}</b></div>
-          : null}
-      </div>
-    )
-  }
 
   /** DeepSeek 平台定价：时段配置 + 官方价格表式价格档编辑。 */
   const renderDeepseekPrices = () => (
@@ -857,7 +705,7 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
               ? <button type="button" className="dshb-btn dshb-btn-small" disabled={balLoading} onClick={() => void loadBalances(true)}>{t('refresh')}</button>
               : null}
             {tab === 'cost'
-              ? <button type="button" className="dshb-btn dshb-btn-small" disabled={costLoading} onClick={() => void loadCost()}>{t('refresh')}</button>
+              ? <button type="button" className="dshb-btn dshb-btn-small" onClick={() => setCostReload((n) => n + 1)}>{t('refresh')}</button>
               : null}
             <button type="button" className="dshb-close" aria-label={t('close')} onClick={close}>✕</button>
           </div>

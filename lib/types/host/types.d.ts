@@ -150,12 +150,62 @@ export interface CostResult {
      *  非官方请求只更新 token 与预估费用，不发起余额查询。 */
     lastRequestOfficial: boolean;
 }
+/** 按步骤用途拆分的 token 量（四桶合计）。 */
+export interface PurposeTokens {
+    /** 工具调用步骤（assistant 消息含 tool-call 部件）。 */
+    tool: number;
+    /** 文本回复步骤（含 text 部件且无 tool-call）。 */
+    text: number;
+    /** 纯推理步骤（既无 tool-call 也无 text）。 */
+    reasoning: number;
+}
+/** 时间轴上的一个桶。 */
+export interface SeriesPoint {
+    /** 桶起始（真实 epoch ms，本地时区对齐）。 */
+    ts: number;
+    /** 展示标签（08:00 / 02-12 / 2026-02）。 */
+    label: string;
+}
+/** 一个桶内按 (provider, model, workspace) 聚合的一条记录。 */
+export interface SeriesRecord {
+    /** provider 路由（API Key 维度；request/context 就近追踪）。 */
+    provider: string;
+    /** 平台（baseURL 域名；未在配置中的 provider 用路由名）。 */
+    platform: string;
+    /** 模型 id；'*' = request/context 缺失时的未知模型。 */
+    model: string;
+    /** 会话 cwd（日志 header）；缺省 ''。 */
+    workspace: string;
+    /** 四桶（不区分官方与否，仅统计数量）。 */
+    buckets: UsageBuckets;
+    /** 官方 key 且精确/前缀命中价格档的金额；否则 0。 */
+    amount: number;
+    /** 是否官方 key 且命中价格档（false → 费用图「未计费」层）。 */
+    priced: boolean;
+    /** step/end 计数（含失败/中断步，与官方 sessionStats steps 一致）。 */
+    steps: number;
+    /** 该记录四桶合计的用途拆分。 */
+    purpose: PurposeTokens;
+}
+/** costSeries op 的返回载荷。 */
+export interface CostSeriesResult {
+    range: 'hour1' | 'today' | 'week7' | 'month1' | 'all';
+    bucket: 'min10' | 'hour' | 'day' | 'month';
+    /** 固定长度桶轴（空桶补零）；「全部」且范围内无任何数据时为空数组。 */
+    points: SeriesPoint[];
+    /** records[i] = points[i] 桶内的记录列表（按 token 总量降序）。 */
+    records: SeriesRecord[][];
+    /** 首个计费档位的币种；无任何计费 → 'CNY'。 */
+    currency: string;
+}
 /** /dsh-balance/api 请求体（HTTP 与命令通道共用）。 */
 export interface OpRequest {
-    op: 'providers' | 'balance' | 'cost' | 'pricesGet' | 'pricesSave' | 'keysGet' | 'keysSave' | 'autoRefreshGet' | 'autoRefreshSave' | 'showBalanceGet' | 'showBalanceSave' | 'updateCheck' | 'pluginUpdateStart' | 'pluginUpdateStatus' | '';
+    op: 'providers' | 'balance' | 'cost' | 'costSeries' | 'pricesGet' | 'pricesSave' | 'keysGet' | 'keysSave' | 'autoRefreshGet' | 'autoRefreshSave' | 'showBalanceGet' | 'showBalanceSave' | 'updateCheck' | 'pluginUpdateStart' | 'pluginUpdateStatus' | '';
     sessionId?: string;
     /** balance：绕过 60s 缓存。 */
     refresh?: boolean;
+    /** costSeries：时间范围（hour1 | today | week7 | month1 | all）。 */
+    range?: string;
     /** pricesSave：完整价格配置（档位 + 高峰时段窗口）。 */
     config?: PriceConfig;
     /** keysSave：完整附加 key 列表。 */

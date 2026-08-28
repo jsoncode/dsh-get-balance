@@ -12,9 +12,11 @@
  *    header.parentSession 血缘（同项目目录）把子孙子代理会话的用量一并折叠
  *    进当前会话 —— 任务开子代理产生的流量归到主任务同一会话头上。
  * 3. 今日磁盘聚合：扫描 dshHomePath('sessions')/<project>/<sessionId>/
- *    session.jsonl(.zstd)，mtime >= 今日零点粗筛 → zstd 解压（整包优先、
- *    多帧按魔数切分兜底）→ 首行 header 取 cwd → 只取 'assistant/message'
- *    且 time >= 今日零点的事件 → 按 (文件路径,mtime,size,今日零点) 记忆化。
+ *    session.jsonl(.zstd)，mtime >= 今日零点粗筛 → 解析复用 log-cache 的
+ *    内存样本缓存（同文件 mtime/size 未变不重复解压）→ 只取 time >= 今日
+ *    零点、已由 parseLogFile 固化了 model/provider 的样本 → 按服务商分组、
+ *    组内按事件自身时段拆高峰/空闲，官方 key 另按模型进 billable 计费。
+ *    当天数据始终实时；历史日由 series-store 的按日聚合存储提供，不重复拉取。
  *
  * 按 API key（服务商条目）分组统计：每个 provider（会话事件中的服务商路由，
  * 对应一个 API key）各自累计 token 四桶 —— 不区分官方与否，一律只统计数量；
@@ -121,12 +123,8 @@ export declare function parseLogEvents(text: string): SessionEventLike[];
  * @param sessions - 宿主内存 sessions 服务（可能缺失）。
  * @param config - 完整价格配置。
  * @param fallbackCwd - 会话 header 无 cwd 时「本项目」判定的 cwd（缺省 process.cwd()）。
+ * @param providerBaseUrls - provider 路由 → baseURL（平台名与官方判定）。
  */
 export declare function computeCosts(sessionId: string, sessions: SessionsService | undefined, config: PriceConfig, fallbackCwd: string, providerBaseUrls?: Record<string, string>): Promise<CostResult>;
-/**
- * 解压一个日志文件：zstd 一律按帧魔数切分逐帧解压（zstdDecompressSync
- * 对多帧文件会静默丢弃首帧之后的帧，不能整包直解）；明文直接返回。
- */
-export declare function decodeLog(path: string, isZstd: boolean): string | undefined;
 export {};
 //# sourceMappingURL=cost.d.ts.map

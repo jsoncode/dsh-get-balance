@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RunFn } from '../rpc.ts'
 import { currencySymbol, t, tErr } from '../i18n.ts'
 import { ChartCard, cacheTooltip, costTooltip, stackedBarOption, type ChartSeriesDef } from './CostCharts.tsx'
+import { ModalPortal } from './ModalPortal.tsx'
 
 /* ── 宿主载荷的最小读取形状（与 host/types.ts 的 SeriesRecord/CostSeriesResult 对齐） ── */
 
@@ -61,6 +62,23 @@ interface SeriesResultView {
   currency: string
 }
 
+/** seriesBackfillInfo op 的载荷（宿主只读预检：该范围是否会触发一次性长回填）。 */
+interface BackfillInfoView {
+  pending: boolean
+  windowBytes: number
+  full: boolean
+}
+
+/** 首次回填确认弹框的状态。 */
+interface ConfirmState {
+  /** 待确认的时间范围。 */
+  range: string
+  /** 回填窗口日志量（压缩后字节），用于提示文案。 */
+  windowBytes: number
+  /** 是否「全部」全量回填。 */
+  full: boolean
+}
+
 export interface CostTabProps {
   run: RunFn
   getSession(): string
@@ -89,6 +107,14 @@ const SKELETON_CARDS = [0, 1, 2, 3, 4]
 /** 四桶 token 总数。 */
 function tokensOf(b: BucketsView): number {
   return b.uncachedInput + b.cacheRead + b.cacheWrite + b.output
+}
+
+/** 字节数 → 可读大小（MB / GB），用于回填确认文案。 */
+function fmtBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '—'
+  const gb = 1024 ** 3
+  const mb = 1024 ** 2
+  return n >= gb ? (n / gb).toFixed(2) + ' GB' : (n / mb).toFixed(1) + ' MB'
 }
 
 /** 工作区展示名：取路径末段（basename）；同名冲突时取末两段区分；空 → 未知工作区。 */
@@ -127,17 +153,83 @@ export function CostTab({ run, getSession, tick, reloadTick, metaOf, active }: C
   const [error, setError] = useState('')
   /** 请求序号：并发请求只采纳最后一次（快速切换时间范围时丢弃过期响应，避免旧范围数据覆盖新范围）。 */
   const loadSeqRef = useRef(0)
+  /**
+   * 每 range 的本地结果缓存：切回已加载过的范围时直接复用，不再向宿主重复拉取
+   * （宿主侧另有持久缓存 + 结果级缓存，这里避免的是浏览器→宿主的网络往返）。
+   */
+  const rangeCacheRef = useRef(new Map<string, SeriesResultView>())
+  /** 上一次生效的 tick / reloadTick：二者未变时的 range 切换视为纯浏览操作，可走本地缓存。 */
+  const lastRefreshRef = useRef({ tick, reloadTick })
+  /** 最近一次真正加载出数据的范围：取消首次回填确认时回退到它（不加载被取消的范围）。 */
+  const lastShownRangeRef = useRef('today')
+
+  /** 首次回填确认弹框（state 渲染 + ref 同步镜像，防抖/effect 内同步读取）。 */
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const confirmRef = useRef<ConfirmState | null>(null)
+  const setConfirmBoth = useCallback((v: ConfirmState | null): void => {
+    confirmRef.current = v
+    setConfirm(v)
+  }, [])
+  /** 用户已确认、回填请求正在执行（期间不再重复预检/弹框）。 */
+  const backfillInFlightRef = useRef(false)
+  /** 本次打开弹框内用户取消过的范围（不再询问，也不静默加载）。 */
+  const dismissedRef = useRef(new Set<string>())
+  /** 回填进行中的全量 loading 遮罩（含等待秒数）。 */
+  const [backfilling, setBackfilling] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
 
   /** 请求 costSeries（range 变化 / 自动 tick / 手动刷新都会触发）。 */
   const load = useCallback(async (): Promise<void> => {
     const seq = ++loadSeqRef.current
+    // 确认弹框打开中：等待用户选择，不发请求（自动 tick 到来时同样等待）。
+    if (confirmRef.current !== null) return
+    // 用户取消过该范围的首次回填：本次打开期间不再加载它。
+    if (dismissedRef.current.has(range)) return
+    // tick / reloadTick 变化 = 刷新语义（自动刷新 / 手动刷新），必须重新拉取；
+    // 仅 range 变化且该 range 已加载过 → 直接复用本地缓存（不再发请求）。
+    const forced = tick !== lastRefreshRef.current.tick || reloadTick !== lastRefreshRef.current.reloadTick
+    lastRefreshRef.current = { tick, reloadTick }
+    if (!forced) {
+      const cached = rangeCacheRef.current.get(range)
+      if (cached !== undefined) {
+        if (seq === loadSeqRef.current) {
+          lastShownRangeRef.current = range
+          setData(cached)
+          setLoading(false)
+          setError('')
+        }
+        return
+      }
+    }
+    // 首次回填确认：日/周/月/全部 首次查看可能触发一次性长回填（解析大量历史日志）。
+    // 先做只读预检（宿主只读、不写存储）；确认后才发真正的 costSeries。
+    if ((range === 'week7' || range === 'month1' || range === 'all') && !backfillInFlightRef.current) {
+      try {
+        const res = await run(getSession(), { op: 'seriesBackfillInfo', range })
+        if (seq !== loadSeqRef.current) return // 预检期间又切换了范围：交给新请求处理
+        const info = res?.ok === true && res.info !== null && typeof res.info === 'object'
+          ? res.info as BackfillInfoView
+          : undefined
+        if (info?.pending === true) {
+          setConfirmBoth({
+            range,
+            windowBytes: typeof info.windowBytes === 'number' ? info.windowBytes : 0,
+            full: info.full === true,
+          })
+          return // 等用户确认；不在此处发请求
+        }
+      } catch { /* 预检失败按无回填处理，直接加载 */ }
+    }
     setLoading(true)
     setError('')
     try {
       const res = await run(getSession(), { op: 'costSeries', range })
       if (seq !== loadSeqRef.current) return // 过期响应：已被更新的请求取代
       if (res.ok && res.series !== undefined) {
-        setData(res.series as SeriesResultView)
+        const series = res.series as SeriesResultView
+        lastShownRangeRef.current = range
+        rangeCacheRef.current.set(range, series)
+        setData(series)
       } else {
         setError(tErr(res, t('seriesError')))
       }
@@ -145,13 +237,51 @@ export function CostTab({ run, getSession, tick, reloadTick, metaOf, active }: C
       if (seq !== loadSeqRef.current) return
       setError(e instanceof Error ? e.message : String(e))
     } finally {
-      if (seq === loadSeqRef.current) setLoading(false)
+      if (seq === loadSeqRef.current) {
+        setLoading(false)
+        setBackfilling(false)
+        backfillInFlightRef.current = false
+      }
     }
-  }, [run, getSession, range])
+  }, [run, getSession, range, tick, reloadTick])
+
+  /** 确认首次回填：关闭弹框、标记回填中、显示全量 loading 遮罩，然后真正加载。 */
+  const handleConfirmBackfill = useCallback((): void => {
+    setConfirmBoth(null)
+    backfillInFlightRef.current = true
+    setBackfilling(true)
+    setElapsed(0)
+    void load()
+  }, [load, setConfirmBoth])
+
+  /** 取消首次回填：记住该范围（本次打开不再询问），并回退到上一个正常加载的范围。 */
+  const handleCancelBackfill = useCallback((): void => {
+    if (confirmRef.current !== null) dismissedRef.current.add(confirmRef.current.range)
+    setConfirmBoth(null)
+    setRange(lastShownRangeRef.current)
+  }, [setConfirmBoth])
+
+  // 回填进行中：每秒刷新等待秒数。
+  useEffect(() => {
+    if (!backfilling) return
+    setElapsed(0)
+    const id = setInterval(() => setElapsed((s) => s + 1), 1000)
+    return () => clearInterval(id)
+  }, [backfilling])
+
+  // 确认弹框打开期间切换了时间范围：关掉旧弹框（新范围会重新预检）。
+  useEffect(() => {
+    if (confirmRef.current !== null && confirmRef.current.range !== range) setConfirmBoth(null)
+  }, [range, setConfirmBoth])
 
   // 首次加载 / range 切换 / 自动 tick / 手动刷新。
+  // 150ms 防抖：快速连点时间范围只发最后一个请求，避免向宿主并发发起多个
+  // costSeries 扫描（配合宿主 single-flight，进一步压缩重复拉取）。
   useEffect(() => {
-    void load()
+    const timer = setTimeout(() => {
+      void load()
+    }, 150)
+    return () => clearTimeout(timer)
   }, [load, tick, reloadTick])
 
   /** 全部记录（未筛选）。 */
@@ -318,7 +448,7 @@ export function CostTab({ run, getSession, tick, reloadTick, metaOf, active }: C
   }, [filtered, labels])
 
   return (
-    <div>
+    <div className="dshb-cost-root">
       <p className="dshb-hint">{t('costTabHint')}</p>
       {/* 筛选行：平台 → API Key → 模型 逐级关联 + 时间分段按钮 */}
       <div className="dshb-filters">
@@ -395,6 +525,37 @@ export function CostTab({ run, getSession, tick, reloadTick, metaOf, active }: C
             <ChartCard title={t('chartCache')} option={cacheOption} active={active} />
             <ChartCard title={t('chartPurpose')} option={purposeOption} active={active} />
           </div>
+        )
+        : null}
+
+      {/* 首次回填全量 loading 遮罩：确认后覆盖费用 tab 内容区，转圈 + 耐心等待提示 */}
+      {backfilling
+        ? (
+          <div className="dshb-backfill-overlay" role="status" aria-live="polite">
+            <div className="dshb-backfill-spinner" aria-hidden="true" />
+            <div>{t('backfillLoading')}</div>
+            <div className="dshb-backfill-elapsed">{t('backfillLoadingElapsed', { s: elapsed })}</div>
+          </div>
+        )
+        : null}
+
+      {/* 首次回填确认弹框：解析历史日志需要较长时间，先征求用户同意 */}
+      {confirm !== null
+        ? (
+          <ModalPortal backdropClass="dshb-confirm-backdrop" modalClass="dshb-modal-sm" onBackdropClose={handleCancelBackfill}>
+            <div className="dshb-modal-header">
+              <span className="dshb-modal-title">{t('backfillConfirmTitle')}</span>
+              <button type="button" className="dshb-close" aria-label={t('close')} onClick={handleCancelBackfill}>✕</button>
+            </div>
+            <div className="dshb-modal-body">
+              <div>{t('backfillConfirmText', { size: fmtBytes(confirm.windowBytes) })}</div>
+              <div className="dshb-hint">{t('backfillCancelHint')}</div>
+            </div>
+            <div className="dshb-modal-footer">
+              <button type="button" className="dshb-btn" onClick={handleCancelBackfill}>{t('cancel')}</button>
+              <button type="button" className="dshb-btn dshb-btn-primary" onClick={handleConfirmBackfill}>{t('backfillConfirmBtn')}</button>
+            </div>
+          </ModalPortal>
         )
         : null}
     </div>

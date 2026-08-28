@@ -218,7 +218,7 @@ export interface CostSeriesResult {
 
 /** /dsh-balance/api 请求体（HTTP 与命令通道共用）。 */
 export interface OpRequest {
-  op: 'providers' | 'balance' | 'cost' | 'costSeries' | 'pricesGet' | 'pricesSave' | 'keysGet' | 'keysSave'
+  op: 'providers' | 'balance' | 'cost' | 'costSeries' | 'seriesBackfillInfo' | 'pricesGet' | 'pricesSave' | 'keysGet' | 'keysSave'
     | 'autoRefreshGet' | 'autoRefreshSave' | 'showBalanceGet' | 'showBalanceSave'
     | 'updateCheck' | 'pluginUpdateStart' | 'pluginUpdateStatus' | ''
   sessionId?: string

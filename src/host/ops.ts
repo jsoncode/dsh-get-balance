@@ -16,7 +16,7 @@ import { listDeepseekProviders, listProviderBaseUrls } from './providers.ts'
 import { queryBalances } from './balance.ts'
 import { readPluginConfig, savePluginConfig } from './config-file.ts'
 import { computeCosts, normalizePriceConfig, type SessionsService } from './cost.ts'
-import { computeSeries, SERIES_RANGES } from './series.ts'
+import { computeSeries, seriesBackfillInfo, SERIES_RANGES } from './series.ts'
 import { checkPluginUpdate } from './update.ts'
 import { getPluginUpdateStatus, startPluginUpdate } from './plugin-update.ts'
 import type { ExtraKey, OpRequest, OpResult, PriceConfig } from './types.ts'
@@ -94,6 +94,15 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
         const providerBaseUrls = listProviderBaseUrls(deps.settings, deps.nsOf)
         const series = await computeSeries(range, await readPriceConfig(), providerBaseUrls)
         return { ok: true, series }
+      }
+      case 'seriesBackfillInfo': {
+        // 首次回填预检（只读）：客户端据此弹确认框；不执行回填、不写存储。
+        const range = typeof request.range === 'string' ? request.range : ''
+        if (!(SERIES_RANGES as readonly string[]).includes(range)) {
+          return { ok: false, code: 'params-invalid', error: 'range must be one of ' + SERIES_RANGES.join('|') }
+        }
+        const info = await seriesBackfillInfo(range, await readPriceConfig())
+        return { ok: true, info }
       }
       case 'pricesGet': {
         return { ok: true, config: await readPriceConfig() }

@@ -82,7 +82,9 @@ export const css = [
   // Safari 前缀 -webkit-backdrop-filter；不支持时优雅降级为纯半透明遮罩）
   '.dshb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:auto;-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2)}',
   // 弹框本体：玻璃拟态（半透明底色 + 自身 blur），与 dshj-modal 一致
-  '.dshb-modal{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 78%,transparent);border:1px solid var(--dsw-alias-border-l2,#ddd);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.28);width:min(760px,100%);min-height:420px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;color:var(--dsw-alias-label-primary,#222);font-size:14px;-webkit-backdrop-filter:blur(24px) saturate(1.5);backdrop-filter:blur(24px) saturate(1.5)}',
+  '.dshb-modal{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 78%,transparent);border:1px solid var(--dsw-alias-border-l2,#ddd);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.28);width:min(760px,100%);display:flex;flex-direction:column;overflow:hidden;color:var(--dsw-alias-label-primary,#222);font-size:14px;-webkit-backdrop-filter:blur(24px) saturate(1.5);backdrop-filter:blur(24px) saturate(1.5)}',
+  // 主弹框（余额 / 费用 / 价格设置）：高度固定 90vh；更新确认/日志弹框不命中此规则，保持内容自适应
+  '.dshb-modal:not(.dshb-modal-sm):not(.dshb-modal-log){height:90vh}',
   // 更新确认/日志弹框：层级高于余额弹框（z 1150），互斥打开互不干扰
   '.dshb-confirm-backdrop{z-index:1150}',
   // 更新确认弹框（小）与更新日志弹框（大）
@@ -135,6 +137,9 @@ export const css = [
   // （height:0 + overflow 裁剪），激活面板决定弹框高度，切换 tab 不会出现
   // 永久超高弹框（费用页图表区很高，由 body 内部滚动承载）。
   '.dshb-modal-body{flex:1;overflow-y:auto;padding:16px 18px;min-width:0;min-height:0;max-height:70vh;display:grid}',
+  // 主弹框（固定 90vh）：body 撑满剩余空间（去掉 70vh 上限），内部滚动承载内容；
+  // 更新确认/日志弹框保留 70vh 上限（内容自适应 + 上限裁剪）。
+  '.dshb-modal:not(.dshb-modal-sm):not(.dshb-modal-log) .dshb-modal-body{max-height:none}',
   '.dshb-modal-body>*{grid-area:1/1;min-width:0}',
   '.dshb-pane-off{visibility:hidden;pointer-events:none;height:0;overflow:hidden}',
   '.dshb-modal-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--dsw-alias-border-l1,#eee);flex:none;flex-wrap:wrap}',
@@ -208,18 +213,25 @@ export const css = [
   // 费用 tab（图表版）：筛选行
   '.dshb-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:10px}',
   '.dshb-filter{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--dsw-alias-label-secondary,#888);white-space:nowrap}',
-  '.dshb-select{box-sizing:border-box;max-width:200px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#222);border:1px solid var(--dsw-alias-border-l2,#ccc);border-radius:8px;padding:4px 8px;font-size:12px;font-family:inherit;cursor:pointer}',
+  // 筛选下拉框：最小宽度占位，选项加载前后宽度稳定不跳动
+  '.dshb-select{box-sizing:border-box;min-width:110px;max-width:200px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#222);border:1px solid var(--dsw-alias-border-l2,#ccc);border-radius:8px;padding:4px 8px;font-size:12px;font-family:inherit;cursor:pointer}',
   '.dshb-select:focus{outline:none;border-color:var(--dsw-alias-brand-primary,#1668e3)}',
   '.dshb-segs{display:inline-flex;gap:4px;flex-wrap:wrap}',
   '.dshb-seg{padding:3px 10px;border:1px solid var(--dsw-alias-border-l2,#ccc);border-radius:999px;background:transparent;color:var(--dsw-alias-label-secondary,#666);font-size:12px;cursor:pointer;white-space:nowrap;font-family:inherit}',
   '.dshb-seg:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.1))}',
   '.dshb-seg-active{background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#1668e3));border-color:transparent;color:var(--dsw-alias-label-primary-foreground,#fff);font-weight:500}',
-  // 费用 tab（图表版）：图表区（前两张 2 列并排，后三张全宽）
-  '.dshb-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}',
+  // 费用 tab（图表版）：图表区（每行一张，全部全宽）
+  '.dshb-charts{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}',
+  // 刷新中（时间切换 / 自动刷新）：旧图表半透明提示「正在更新」，指针锁定防误操作
+  '.dshb-charts-loading{opacity:.5;pointer-events:none;transition:opacity .15s}',
   '.dshb-chart{min-width:0;border:1px solid var(--dsw-alias-border-l1,#eee);border-radius:10px;padding:10px 12px;background:var(--dsw-alias-bg-layer-2,#fafafa)}',
-  '.dshb-chart-wide{grid-column:1/-1}',
   '.dshb-chart-title{font-size:13px;font-weight:600;margin:0 0 6px;color:var(--dsw-alias-label-primary,#222)}',
   '.dshb-chart-box{height:220px;min-width:0}',
+  // 首次加载骨架占位：与真实图表卡片同构同高（标题行 + 220px 图区），数据到达前布局不跳动
+  '.dshb-charts-placeholder{pointer-events:none}',
+  '.dshb-chart-skeleton{display:flex;flex-direction:column}',
+  '.dshb-skeleton-line{height:14px;border-radius:4px;background:rgba(128,128,128,.15);margin:0 0 8px}',
+  '.dshb-skeleton-box{border-radius:6px;background:rgba(128,128,128,.07)}',
   '.dshb-chart-tip{font-size:11px;color:var(--dsw-alias-label-tertiary,#999);margin:4px 0 0;line-height:1.4}',
   '.dshb-series-empty{padding:36px 16px;text-align:center;color:var(--dsw-alias-label-secondary,#888);font-size:13px}',
   '.dshb-series-error{display:flex;align-items:center;gap:8px;padding:12px;font-size:12px;color:var(--dsw-alias-state-error-primary,#d33)}',

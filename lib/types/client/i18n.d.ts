@@ -17,4 +17,9 @@ export declare const fmtAmount: (amount: number | undefined) => string;
 export declare function currencySymbol(code: string): string;
 /** token 数量紧凑格式化：1234567 → 1.23M，减小长数字占位（最多 3 位有效数字）。 */
 export declare const fmtTokens: (n: number | undefined) => string;
+/**
+ * 坐标轴紧凑简写：1234 → 1.2K，2345678 → 2.3M，0.05 → 0.05（小数保留合理精度）。
+ * 与 fmtTokens 一样处理四舍五入进位（999.99B → 1T），适用于金额/Token 两类轴。
+ */
+export declare const fmtCompact: (n: number | undefined) => string;
 //# sourceMappingURL=i18n.d.ts.map

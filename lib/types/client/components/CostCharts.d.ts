@@ -21,19 +21,19 @@ export interface ChartSeriesDef {
 }
 /** 堆叠柱状图公共 option 骨架。 */
 export declare function stackedBarOption(labels: string[], series: ChartSeriesDef[], yName: string, tooltip?: (params: unknown[]) => string): EChartsCoreOption;
-/** 费用图 tooltip：priced 系列金额两位小数 + 币种；「未计费」系列显示 token 量提示。 */
-export declare function costTooltip(params: unknown[], currency: string, notPricedName: string): string;
+/** 费用图 tooltip：仅展示已计费金额（两位小数 + 币种符号，CNY → ¥）。 */
+export declare function costTooltip(params: unknown[], currency: string): string;
+/** 缓存比例图 tooltip：命中/未命中 token 量 + 底部「命中缓存率」（命中 ÷ 输入侧总量）。 */
+export declare function cacheTooltip(params: unknown[]): string;
 export interface ChartCardProps {
     title: string;
     option: EChartsCoreOption;
     /** tab 激活（可见）才 init；隐藏容器不初始化。 */
     active: boolean;
-    /** 全宽卡片（grid-column 1/-1）。 */
-    wide?: boolean;
 }
 /**
  * 单张 ECharts 卡片：init / ResizeObserver / dispose 生命周期管理。
  * option 变化以 notMerge 重建（筛选/时间切换后系列集合变化）。
  */
-export declare function ChartCard({ title, option, active, wide }: ChartCardProps): import("react").JSX.Element;
+export declare function ChartCard({ title, option, active }: ChartCardProps): import("react").JSX.Element;
 //# sourceMappingURL=CostCharts.d.ts.map

@@ -14,7 +14,7 @@ import { BarChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsCoreOption } from 'echarts/core'
-import { fmtAmount, fmtTokens } from '../i18n.ts'
+import { currencySymbol, fmtAmount, fmtCompact, fmtTokens, LANG, t } from '../i18n.ts'
 
 echarts.use([BarChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
@@ -80,8 +80,10 @@ export function stackedBarOption(
       type: 'value',
       name: yName,
       nameTextStyle: { color: cssVar('--dsw-alias-label-tertiary', '#999'), fontSize: 10, padding: [0, 0, 0, -4] },
-      splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
-      axisLabel: { color: cssVar('--dsw-alias-label-tertiary', '#999'), fontSize: 10 },
+      // 网格线颜色淡化（低不透明度，仅作轻微刻度参考，不与柱体抢视觉）。
+      splitLine: { lineStyle: { color: gridColor, type: 'dashed', opacity: 0.15 } },
+      // 坐标简写：K / M / B / T（金额与 Token 两类轴统一）。
+      axisLabel: { color: cssVar('--dsw-alias-label-tertiary', '#999'), fontSize: 10, formatter: (v: number) => fmtCompact(v) },
     },
     series: series.map((s, i) => ({
       name: s.name,
@@ -108,19 +110,35 @@ function defaultTokenTooltip(params: unknown[]): string {
   return html
 }
 
-/** 费用图 tooltip：priced 系列金额两位小数 + 币种；「未计费」系列显示 token 量提示。 */
-export function costTooltip(params: unknown[], currency: string, notPricedName: string): string {
+/** 费用图 tooltip：仅展示已计费金额（两位小数 + 币种符号，CNY → ¥）。 */
+export function costTooltip(params: unknown[], currency: string): string {
   const rows = params as Array<{ marker?: string; seriesName?: string; value?: unknown; axisValue?: unknown }>
   const axis = rows[0]?.axisValue
   let html = '<div style="font-weight:600;margin-bottom:4px">' + String(axis ?? '') + '</div>'
   for (const p of rows) {
     const v = typeof p.value === 'number' ? p.value : 0
     if (v <= 0) continue
-    if (p.seriesName === notPricedName) {
-      html += '<div>' + (p.marker ?? '') + (p.seriesName ?? '') + ': <b>' + fmtTokens(v) + '</b> tokens（未配置定价）</div>'
-    } else {
-      html += '<div>' + (p.marker ?? '') + (p.seriesName ?? '') + ': <b>≈' + fmtAmount(v) + ' ' + currency + '</b></div>'
-    }
+    html += '<div>' + (p.marker ?? '') + (p.seriesName ?? '') + ': <b>≈' + currencySymbol(currency) + fmtAmount(v) + '</b></div>'
+  }
+  return html
+}
+
+/** 缓存比例图 tooltip：命中/未命中 token 量 + 底部「命中缓存率」（命中 ÷ 输入侧总量）。 */
+export function cacheTooltip(params: unknown[]): string {
+  const rows = params as Array<{ marker?: string; seriesName?: string; value?: unknown; axisValue?: unknown }>
+  const axis = rows[0]?.axisValue
+  const hit = typeof rows[0]?.value === 'number' ? rows[0].value : 0
+  const miss = typeof rows[1]?.value === 'number' ? rows[1].value : 0
+  const total = hit + miss
+  let html = '<div style="font-weight:600;margin-bottom:4px">' + String(axis ?? '') + '</div>'
+  for (const p of rows) {
+    const v = typeof p.value === 'number' ? p.value : 0
+    if (v <= 0) continue
+    html += '<div>' + (p.marker ?? '') + (p.seriesName ?? '') + ': <b>' + fmtTokens(v) + '</b></div>'
+  }
+  if (total > 0) {
+    const rate = (hit / total) * 100
+    html += '<div style="margin-top:4px;border-top:1px solid rgba(128,128,128,.25);padding-top:4px">' + t('cacheHitRate') + (LANG === 'zh' ? '：' : ': ') + '<b>' + rate.toFixed(1) + '%</b></div>'
   }
   return html
 }
@@ -130,15 +148,13 @@ export interface ChartCardProps {
   option: EChartsCoreOption
   /** tab 激活（可见）才 init；隐藏容器不初始化。 */
   active: boolean
-  /** 全宽卡片（grid-column 1/-1）。 */
-  wide?: boolean
 }
 
 /**
  * 单张 ECharts 卡片：init / ResizeObserver / dispose 生命周期管理。
  * option 变化以 notMerge 重建（筛选/时间切换后系列集合变化）。
  */
-export function ChartCard({ title, option, active, wide }: ChartCardProps) {
+export function ChartCard({ title, option, active }: ChartCardProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
   const optionRef = useRef(option)
@@ -167,7 +183,7 @@ export function ChartCard({ title, option, active, wide }: ChartCardProps) {
   }, [active])
 
   return (
-    <div className={'dshb-chart' + (wide === true ? ' dshb-chart-wide' : '')}>
+    <div className="dshb-chart">
       <div className="dshb-chart-title">{title}</div>
       <div className="dshb-chart-box" ref={boxRef} />
     </div>

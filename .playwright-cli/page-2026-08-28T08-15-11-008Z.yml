@@ -1,0 +1,95 @@
+- generic [ref=f8e4]:
+  - generic [ref=f8e7]:
+    - generic [ref=f8e8]:
+      - button "新建会话" [ref=f8e9] [cursor=pointer]
+      - button "收起侧边栏" [ref=f8e38] [cursor=pointer]
+    - button "新建会话" [ref=f8e41] [cursor=pointer]:
+      - generic [ref=f8e44]: 新会话
+    - generic [ref=f8e47]:
+      - generic [ref=f8e48]:
+        - generic [ref=f8e49]: 工作区
+        - generic [ref=f8e51]:
+          - button "搜索会话" [ref=f8e52] [cursor=pointer]
+          - textbox "搜索会话…"
+        - generic [ref=f8e56]:
+          - button "视图选项" [ref=f8e58] [cursor=pointer]
+          - button "添加工作区" [ref=f8e61] [cursor=pointer]
+      - tree "会话" [ref=f8e67]:
+        - treeitem "dsh-model-list" [ref=f8e70] [cursor=pointer]
+        - treeitem "dsh-search-model" [ref=f8e78] [cursor=pointer]
+        - treeitem "gits.whale-plus.com" [ref=f8e86] [cursor=pointer]
+        - generic [ref=f8e92]:
+          - treeitem "deepseek-harness-desktop" [expanded] [ref=f8e94] [cursor=pointer]
+          - treeitem "新会话" [selected] [ref=f8e189] [cursor=pointer]
+          - treeitem "优化插件卸载流程 34分钟" [ref=f8e193] [cursor=pointer]:
+            - generic [ref=f8e195]: 优化插件卸载流程
+            - generic [ref=f8e196]: 34分钟
+          - treeitem "优化应用版本号跳转及日志管理 1小时" [ref=f8e198] [cursor=pointer]:
+            - generic [ref=f8e200]: 优化应用版本号跳转及日志管理
+            - generic [ref=f8e201]: 1小时
+          - treeitem "系统消息跳转工作区对话框 51分钟" [ref=f8e203] [cursor=pointer]:
+            - generic [ref=f8e205]: 系统消息跳转工作区对话框
+            - generic [ref=f8e206]: 51分钟
+          - treeitem "为dsh配置文件添加兼容性修复功能 2小时" [ref=f8e208] [cursor=pointer]:
+            - generic [ref=f8e210]: 为dsh配置文件添加兼容性修复功能
+            - generic [ref=f8e211]: 2小时
+          - button "展开其余 10 个会话" [ref=f8e212] [cursor=pointer]
+        - treeitem "cxagroup-hr-portal-ui" [ref=f8e103] [cursor=pointer]
+        - treeitem "dsh-jenkins" [ref=f8e111] [cursor=pointer]
+        - treeitem "dsh-get-balance" [ref=f8e119] [cursor=pointer]
+        - treeitem "未分组" [ref=f8e214] [cursor=pointer]
+    - generic [ref=f8e125]:
+      - generic [ref=f8e127]:
+        - button "Jenkins 配置" [ref=f8e129] [cursor=pointer]
+        - button "余额" [active] [ref=f8e132] [cursor=pointer]
+      - button "设置" [ref=f8e137] [cursor=pointer]
+  - generic [ref=f8e151]:
+    - generic [ref=f8e154]:
+      - generic [ref=f8e159]: 探索未至之境
+      - generic [ref=f8e160]: 预览版
+    - generic [ref=f8e161]:
+      - button "选择工作区" [ref=f8e162] [cursor=pointer]:
+        - generic [ref=f8e165]: deepseek-harness-desktop
+      - button "标准模式" [ref=f8e170] [cursor=pointer]
+    - generic [ref=f8e180]:
+      - textbox "描述你想要构建的内容" [ref=f8e223]
+      - generic [ref=f8e184]:
+        - generic [ref=f8e185]:
+          - button "命令" [ref=f8e224] [cursor=pointer]
+          - button "访问模式，当前：Full access" [ref=f8e229] [cursor=pointer]:
+            - generic [ref=f8e235]: Full access
+        - generic [ref=f8e186]:
+          - button "模型 DeepSeek-V4-Flash 与推理等级" [ref=f8e241] [cursor=pointer]:
+            - generic [ref=f8e242]: DeepSeek-V4-Flash
+            - generic [ref=f8e243]: High
+          - button "发送消息" [disabled] [ref=f8e246]
+  - generic [ref=f8e250]:
+    - generic [ref=f8e251]:
+      - generic: 详情
+      - button "关闭详情" [ref=f8e252] [cursor=pointer]
+    - generic [ref=f8e255]: 点击消息流中的工具行查看详情
+  - dialog [ref=f8e258]:
+    - generic [ref=f8e259]:
+      - generic [ref=f8e260]: 账户余额 · Token 调用量
+      - generic [ref=f8e261]:
+        - button "余额" [ref=f8e262] [cursor=pointer]
+        - button "费用" [ref=f8e263] [cursor=pointer]
+        - button "价格设置" [ref=f8e264] [cursor=pointer]
+      - generic [ref=f8e265]:
+        - button "定时更新" [ref=f8e266] [cursor=pointer]
+        - button "刷新" [disabled] [ref=f8e267]
+        - button "关闭" [ref=f8e268] [cursor=pointer]: ✕
+    - generic [ref=f8e269]:
+      - generic [ref=f8e271]:
+        - generic [ref=f8e272]:
+          - generic [ref=f8e273]:
+            - generic [ref=f8e274]: 显示余额
+            - paragraph [ref=f8e275]: 关闭后，底部「余额」入口与上方列表中的余额金额一律显示为 **（不影响查询与费用统计）
+          - switch "显示余额" [checked] [ref=f8e276] [cursor=pointer]
+        - generic [ref=f8e279]:
+          - generic [ref=f8e280]: 附加 API Key
+          - paragraph [ref=f8e281]: 手动添加不在 dsh providers 配置中的 key（仅用于余额查询，明文保存在 $DSH_HOME/dsh-get-balance.json）
+          - button "+ 附加 API Key" [ref=f8e282] [cursor=pointer]
+      - option "全部" [selected]
+      - option "全部" [selected]
+      - option "全部" [selected]

@@ -1,0 +1,36 @@
+- generic [ref=f3e4]:
+  - generic [ref=f3e7]:
+    - generic [ref=f3e8]:
+      - button "新建会话" [ref=f3e9] [cursor=pointer]
+      - button "收起侧边栏" [ref=f3e38] [cursor=pointer]
+    - button "新建会话" [ref=f3e41] [cursor=pointer]:
+      - generic [ref=f3e44]: 新会话
+    - generic [ref=f3e47]:
+      - generic [ref=f3e48]:
+        - generic [ref=f3e49]: 工作区
+        - generic [ref=f3e51]:
+          - button "搜索会话" [ref=f3e52] [cursor=pointer]
+          - textbox "搜索会话…"
+        - generic [ref=f3e56]:
+          - button "视图选项" [ref=f3e58] [cursor=pointer]
+          - button "添加工作区" [ref=f3e61] [cursor=pointer]
+      - tree "会话" [ref=f3e67]:
+        - generic [ref=f3e68]: 暂无会话
+    - generic [ref=f3e69]:
+      - generic [ref=f3e71]:
+        - button "Jenkins 配置" [ref=f3e73] [cursor=pointer]
+        - button "余额" [ref=f3e76] [cursor=pointer]
+      - button "设置" [ref=f3e81] [cursor=pointer]
+  - generic [ref=f3e95]:
+    - generic [ref=f3e98]:
+      - generic [ref=f3e103]: 探索未至之境
+      - generic [ref=f3e104]: 预览版
+    - button "选择工作区" [ref=f3e106] [cursor=pointer]
+    - generic [ref=f3e114] [cursor=pointer]:
+      - textbox "选择工作区" [ref=f3e117]:
+        - /placeholder: 选择一个工作区开始
+      - generic [ref=f3e118]:
+        - generic [ref=f3e119]:
+          - button "命令" [disabled]
+        - generic [ref=f3e120]:
+          - button "发送消息" [disabled]

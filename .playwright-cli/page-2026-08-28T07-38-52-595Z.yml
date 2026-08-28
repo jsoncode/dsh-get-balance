@@ -1,0 +1,426 @@
+- generic [ref=e4]:
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - button "新建会话" [ref=e9] [cursor=pointer]
+      - button "收起侧边栏" [ref=e38] [cursor=pointer]
+    - button "新建会话" [ref=e41] [cursor=pointer]:
+      - generic [ref=e44]: 新会话
+    - generic [ref=e47]:
+      - generic [ref=e48]:
+        - generic [ref=e49]: 工作区
+        - generic [ref=e51]:
+          - button "搜索会话" [ref=e52] [cursor=pointer]
+          - textbox "搜索会话…"
+        - generic [ref=e56]:
+          - button "视图选项" [ref=e58] [cursor=pointer]
+          - button "添加工作区" [ref=e61] [cursor=pointer]
+      - tree "会话" [ref=e67]:
+        - treeitem "dsh-model-list" [ref=e124] [cursor=pointer]
+        - treeitem "dsh-search-model" [ref=e132] [cursor=pointer]
+        - treeitem "gits.whale-plus.com" [ref=e140] [cursor=pointer]
+        - generic [ref=e146]:
+          - treeitem "deepseek-harness-desktop" [expanded] [ref=e148] [cursor=pointer]
+          - treeitem "新会话" [selected] [ref=e156] [cursor=pointer]
+          - treeitem "进行中 优化插件卸载流程 4分钟" [ref=e160] [cursor=pointer]:
+            - generic [ref=e161]: 进行中
+            - generic [ref=e172]: 优化插件卸载流程
+            - generic [ref=e173]: 4分钟
+          - treeitem "优化应用版本号跳转及日志管理 27分钟" [ref=e175] [cursor=pointer]:
+            - generic [ref=e177]: 优化应用版本号跳转及日志管理
+            - generic [ref=e178]: 27分钟
+          - treeitem "系统消息跳转工作区对话框 15分钟" [ref=e180] [cursor=pointer]:
+            - generic [ref=e182]: 系统消息跳转工作区对话框
+            - generic [ref=e183]: 15分钟
+          - treeitem "为dsh配置文件添加兼容性修复功能 1小时" [ref=e185] [cursor=pointer]:
+            - generic [ref=e187]: 为dsh配置文件添加兼容性修复功能
+            - generic [ref=e188]: 1小时
+          - button "展开其余 10 个会话" [ref=e189] [cursor=pointer]
+        - treeitem "cxagroup-hr-portal-ui" [ref=e192] [cursor=pointer]
+        - treeitem "dsh-jenkins" [ref=e200] [cursor=pointer]
+        - treeitem "dsh-get-balance" [ref=e208] [cursor=pointer]
+        - treeitem "未分组" [ref=e215] [cursor=pointer]
+    - generic [ref=e69]:
+      - generic [ref=e71]:
+        - button "Jenkins 配置" [ref=e73] [cursor=pointer]
+        - button "余额 ¥60.72 | ¥819.01 当前为高峰时段 全价计费" [active] [ref=e221] [cursor=pointer]:
+          - generic [ref=e77]:
+            - generic [ref=e222]:
+              - generic [ref=e223]: 余额
+              - generic "当前为高峰时段 全价计费" [ref=e224]
+            - generic [ref=e225]:
+              - generic [ref=e226]:
+                - generic [ref=e227]: ¥
+                - generic [ref=e228]:
+                  - generic [ref=e230]:
+                    - generic [ref=e231]: "0"
+                    - generic [ref=e232]: "1"
+                    - generic [ref=e233]: "2"
+                    - generic [ref=e234]: "3"
+                    - generic [ref=e235]: "4"
+                    - generic [ref=e236]: "5"
+                    - generic [ref=e237]: "6"
+                    - generic [ref=e238]: "7"
+                    - generic [ref=e239]: "8"
+                    - generic [ref=e240]: "9"
+                    - generic [ref=e241]: "0"
+                    - generic [ref=e242]: "1"
+                    - generic [ref=e243]: "2"
+                    - generic [ref=e244]: "3"
+                    - generic [ref=e245]: "4"
+                    - generic [ref=e246]: "5"
+                    - generic [ref=e247]: "6"
+                    - generic [ref=e248]: "7"
+                    - generic [ref=e249]: "8"
+                    - generic [ref=e250]: "9"
+                    - generic [ref=e251]: "0"
+                    - generic [ref=e252]: "1"
+                    - generic [ref=e253]: "2"
+                    - generic [ref=e254]: "3"
+                    - generic [ref=e255]: "4"
+                    - generic [ref=e256]: "5"
+                    - generic [ref=e257]: "6"
+                    - generic [ref=e258]: "7"
+                    - generic [ref=e259]: "8"
+                    - generic [ref=e260]: "9"
+                  - generic [ref=e262]:
+                    - generic [ref=e263]: "0"
+                    - generic [ref=e264]: "1"
+                    - generic [ref=e265]: "2"
+                    - generic [ref=e266]: "3"
+                    - generic [ref=e267]: "4"
+                    - generic [ref=e268]: "5"
+                    - generic [ref=e269]: "6"
+                    - generic [ref=e270]: "7"
+                    - generic [ref=e271]: "8"
+                    - generic [ref=e272]: "9"
+                    - generic [ref=e273]: "0"
+                    - generic [ref=e274]: "1"
+                    - generic [ref=e275]: "2"
+                    - generic [ref=e276]: "3"
+                    - generic [ref=e277]: "4"
+                    - generic [ref=e278]: "5"
+                    - generic [ref=e279]: "6"
+                    - generic [ref=e280]: "7"
+                    - generic [ref=e281]: "8"
+                    - generic [ref=e282]: "9"
+                    - generic [ref=e283]: "0"
+                    - generic [ref=e284]: "1"
+                    - generic [ref=e285]: "2"
+                    - generic [ref=e286]: "3"
+                    - generic [ref=e287]: "4"
+                    - generic [ref=e288]: "5"
+                    - generic [ref=e289]: "6"
+                    - generic [ref=e290]: "7"
+                    - generic [ref=e291]: "8"
+                    - generic [ref=e292]: "9"
+                  - generic [ref=e293]: .
+                  - generic [ref=e295]:
+                    - generic [ref=e296]: "0"
+                    - generic [ref=e297]: "1"
+                    - generic [ref=e298]: "2"
+                    - generic [ref=e299]: "3"
+                    - generic [ref=e300]: "4"
+                    - generic [ref=e301]: "5"
+                    - generic [ref=e302]: "6"
+                    - generic [ref=e303]: "7"
+                    - generic [ref=e304]: "8"
+                    - generic [ref=e305]: "9"
+                    - generic [ref=e306]: "0"
+                    - generic [ref=e307]: "1"
+                    - generic [ref=e308]: "2"
+                    - generic [ref=e309]: "3"
+                    - generic [ref=e310]: "4"
+                    - generic [ref=e311]: "5"
+                    - generic [ref=e312]: "6"
+                    - generic [ref=e313]: "7"
+                    - generic [ref=e314]: "8"
+                    - generic [ref=e315]: "9"
+                    - generic [ref=e316]: "0"
+                    - generic [ref=e317]: "1"
+                    - generic [ref=e318]: "2"
+                    - generic [ref=e319]: "3"
+                    - generic [ref=e320]: "4"
+                    - generic [ref=e321]: "5"
+                    - generic [ref=e322]: "6"
+                    - generic [ref=e323]: "7"
+                    - generic [ref=e324]: "8"
+                    - generic [ref=e325]: "9"
+                  - generic [ref=e327]:
+                    - generic [ref=e328]: "0"
+                    - generic [ref=e329]: "1"
+                    - generic [ref=e330]: "2"
+                    - generic [ref=e331]: "3"
+                    - generic [ref=e332]: "4"
+                    - generic [ref=e333]: "5"
+                    - generic [ref=e334]: "6"
+                    - generic [ref=e335]: "7"
+                    - generic [ref=e336]: "8"
+                    - generic [ref=e337]: "9"
+                    - generic [ref=e338]: "0"
+                    - generic [ref=e339]: "1"
+                    - generic [ref=e340]: "2"
+                    - generic [ref=e341]: "3"
+                    - generic [ref=e342]: "4"
+                    - generic [ref=e343]: "5"
+                    - generic [ref=e344]: "6"
+                    - generic [ref=e345]: "7"
+                    - generic [ref=e346]: "8"
+                    - generic [ref=e347]: "9"
+                    - generic [ref=e348]: "0"
+                    - generic [ref=e349]: "1"
+                    - generic [ref=e350]: "2"
+                    - generic [ref=e351]: "3"
+                    - generic [ref=e352]: "4"
+                    - generic [ref=e353]: "5"
+                    - generic [ref=e354]: "6"
+                    - generic [ref=e355]: "7"
+                    - generic [ref=e356]: "8"
+                    - generic [ref=e357]: "9"
+              - generic [ref=e358]: "|"
+              - generic [ref=e359]:
+                - generic [ref=e360]: ¥
+                - generic [ref=e361]:
+                  - generic [ref=e363]:
+                    - generic [ref=e364]: "0"
+                    - generic [ref=e365]: "1"
+                    - generic [ref=e366]: "2"
+                    - generic [ref=e367]: "3"
+                    - generic [ref=e368]: "4"
+                    - generic [ref=e369]: "5"
+                    - generic [ref=e370]: "6"
+                    - generic [ref=e371]: "7"
+                    - generic [ref=e372]: "8"
+                    - generic [ref=e373]: "9"
+                    - generic [ref=e374]: "0"
+                    - generic [ref=e375]: "1"
+                    - generic [ref=e376]: "2"
+                    - generic [ref=e377]: "3"
+                    - generic [ref=e378]: "4"
+                    - generic [ref=e379]: "5"
+                    - generic [ref=e380]: "6"
+                    - generic [ref=e381]: "7"
+                    - generic [ref=e382]: "8"
+                    - generic [ref=e383]: "9"
+                    - generic [ref=e384]: "0"
+                    - generic [ref=e385]: "1"
+                    - generic [ref=e386]: "2"
+                    - generic [ref=e387]: "3"
+                    - generic [ref=e388]: "4"
+                    - generic [ref=e389]: "5"
+                    - generic [ref=e390]: "6"
+                    - generic [ref=e391]: "7"
+                    - generic [ref=e392]: "8"
+                    - generic [ref=e393]: "9"
+                  - generic [ref=e395]:
+                    - generic [ref=e396]: "0"
+                    - generic [ref=e397]: "1"
+                    - generic [ref=e398]: "2"
+                    - generic [ref=e399]: "3"
+                    - generic [ref=e400]: "4"
+                    - generic [ref=e401]: "5"
+                    - generic [ref=e402]: "6"
+                    - generic [ref=e403]: "7"
+                    - generic [ref=e404]: "8"
+                    - generic [ref=e405]: "9"
+                    - generic [ref=e406]: "0"
+                    - generic [ref=e407]: "1"
+                    - generic [ref=e408]: "2"
+                    - generic [ref=e409]: "3"
+                    - generic [ref=e410]: "4"
+                    - generic [ref=e411]: "5"
+                    - generic [ref=e412]: "6"
+                    - generic [ref=e413]: "7"
+                    - generic [ref=e414]: "8"
+                    - generic [ref=e415]: "9"
+                    - generic [ref=e416]: "0"
+                    - generic [ref=e417]: "1"
+                    - generic [ref=e418]: "2"
+                    - generic [ref=e419]: "3"
+                    - generic [ref=e420]: "4"
+                    - generic [ref=e421]: "5"
+                    - generic [ref=e422]: "6"
+                    - generic [ref=e423]: "7"
+                    - generic [ref=e424]: "8"
+                    - generic [ref=e425]: "9"
+                  - generic [ref=e427]:
+                    - generic [ref=e428]: "0"
+                    - generic [ref=e429]: "1"
+                    - generic [ref=e430]: "2"
+                    - generic [ref=e431]: "3"
+                    - generic [ref=e432]: "4"
+                    - generic [ref=e433]: "5"
+                    - generic [ref=e434]: "6"
+                    - generic [ref=e435]: "7"
+                    - generic [ref=e436]: "8"
+                    - generic [ref=e437]: "9"
+                    - generic [ref=e438]: "0"
+                    - generic [ref=e439]: "1"
+                    - generic [ref=e440]: "2"
+                    - generic [ref=e441]: "3"
+                    - generic [ref=e442]: "4"
+                    - generic [ref=e443]: "5"
+                    - generic [ref=e444]: "6"
+                    - generic [ref=e445]: "7"
+                    - generic [ref=e446]: "8"
+                    - generic [ref=e447]: "9"
+                    - generic [ref=e448]: "0"
+                    - generic [ref=e449]: "1"
+                    - generic [ref=e450]: "2"
+                    - generic [ref=e451]: "3"
+                    - generic [ref=e452]: "4"
+                    - generic [ref=e453]: "5"
+                    - generic [ref=e454]: "6"
+                    - generic [ref=e455]: "7"
+                    - generic [ref=e456]: "8"
+                    - generic [ref=e457]: "9"
+                  - generic [ref=e458]: .
+                  - generic [ref=e460]:
+                    - generic [ref=e461]: "0"
+                    - generic [ref=e462]: "1"
+                    - generic [ref=e463]: "2"
+                    - generic [ref=e464]: "3"
+                    - generic [ref=e465]: "4"
+                    - generic [ref=e466]: "5"
+                    - generic [ref=e467]: "6"
+                    - generic [ref=e468]: "7"
+                    - generic [ref=e469]: "8"
+                    - generic [ref=e470]: "9"
+                    - generic [ref=e471]: "0"
+                    - generic [ref=e472]: "1"
+                    - generic [ref=e473]: "2"
+                    - generic [ref=e474]: "3"
+                    - generic [ref=e475]: "4"
+                    - generic [ref=e476]: "5"
+                    - generic [ref=e477]: "6"
+                    - generic [ref=e478]: "7"
+                    - generic [ref=e479]: "8"
+                    - generic [ref=e480]: "9"
+                    - generic [ref=e481]: "0"
+                    - generic [ref=e482]: "1"
+                    - generic [ref=e483]: "2"
+                    - generic [ref=e484]: "3"
+                    - generic [ref=e485]: "4"
+                    - generic [ref=e486]: "5"
+                    - generic [ref=e487]: "6"
+                    - generic [ref=e488]: "7"
+                    - generic [ref=e489]: "8"
+                    - generic [ref=e490]: "9"
+                  - generic [ref=e492]:
+                    - generic [ref=e493]: "0"
+                    - generic [ref=e494]: "1"
+                    - generic [ref=e495]: "2"
+                    - generic [ref=e496]: "3"
+                    - generic [ref=e497]: "4"
+                    - generic [ref=e498]: "5"
+                    - generic [ref=e499]: "6"
+                    - generic [ref=e500]: "7"
+                    - generic [ref=e501]: "8"
+                    - generic [ref=e502]: "9"
+                    - generic [ref=e503]: "0"
+                    - generic [ref=e504]: "1"
+                    - generic [ref=e505]: "2"
+                    - generic [ref=e506]: "3"
+                    - generic [ref=e507]: "4"
+                    - generic [ref=e508]: "5"
+                    - generic [ref=e509]: "6"
+                    - generic [ref=e510]: "7"
+                    - generic [ref=e511]: "8"
+                    - generic [ref=e512]: "9"
+                    - generic [ref=e513]: "0"
+                    - generic [ref=e514]: "1"
+                    - generic [ref=e515]: "2"
+                    - generic [ref=e516]: "3"
+                    - generic [ref=e517]: "4"
+                    - generic [ref=e518]: "5"
+                    - generic [ref=e519]: "6"
+                    - generic [ref=e520]: "7"
+                    - generic [ref=e521]: "8"
+                    - generic [ref=e522]: "9"
+      - button "设置" [ref=e81] [cursor=pointer]
+  - generic [ref=e95]:
+    - generic [ref=e98]:
+      - generic [ref=e103]: 探索未至之境
+      - generic [ref=e104]: 预览版
+    - generic [ref=e105]:
+      - button "选择工作区" [ref=e106] [cursor=pointer]:
+        - generic [ref=e109]: deepseek-harness-desktop
+      - button "标准模式" [ref=e528] [cursor=pointer]
+    - generic [ref=e114]:
+      - textbox "描述你想要构建的内容" [ref=e536]
+      - generic [ref=e118]:
+        - generic [ref=e119]:
+          - button "命令" [ref=e537] [cursor=pointer]
+          - button "访问模式，当前：Full access" [ref=e542] [cursor=pointer]:
+            - generic [ref=e548]: Full access
+        - generic [ref=e120]:
+          - button "deepseek-v4-flash" [ref=e554] [cursor=pointer]
+          - button "发送消息" [disabled] [ref=e558]
+  - generic [ref=e562]:
+    - generic [ref=e563]:
+      - generic: 详情
+      - button "关闭详情" [ref=e564] [cursor=pointer]
+    - generic [ref=e567]: 点击消息流中的工具行查看详情
+  - dialog [ref=e570]:
+    - generic [ref=e571]:
+      - generic [ref=e572]: 账户余额 · Token 调用量
+      - generic [ref=e573]:
+        - button "余额" [ref=e574] [cursor=pointer]
+        - button "费用" [ref=e575] [cursor=pointer]
+        - button "价格设置" [ref=e576] [cursor=pointer]
+      - generic [ref=e577]:
+        - button "定时更新" [ref=e578] [cursor=pointer]
+        - button "刷新" [ref=e579] [cursor=pointer]
+        - button "关闭" [ref=e580] [cursor=pointer]: ✕
+    - generic [ref=e581]:
+      - generic [ref=e583]:
+        - generic [ref=e584]:
+          - generic [ref=e585]:
+            - generic [ref=e586]: 显示余额
+            - paragraph [ref=e587]: 关闭后，底部「余额」入口与上方列表中的余额金额一律显示为 **（不影响查询与费用统计）
+          - switch "显示余额" [checked] [ref=e588] [cursor=pointer]
+        - generic [ref=e590]:
+          - generic [ref=e591]:
+            - generic [ref=e592]:
+              - generic [ref=e593]:
+                - generic [ref=e594]: ds-self
+                - generic [ref=e595]: pi-ai 路由
+              - generic [ref=e596]: https://api.deepseek.com/ · sk-04…7c50
+            - generic [ref=e598]:
+              - generic [ref=e599]:
+                - generic [ref=e600]: 今日消耗
+                - generic [ref=e601]: ≈2.32 CNY
+                - generic [ref=e602]: "|"
+                - generic [ref=e603]: 余额
+                - generic [ref=e604]: 60.28 CNY
+              - generic [ref=e605]: 赠送余额 0.00
+          - generic [ref=e606]:
+            - generic [ref=e607]:
+              - generic [ref=e608]:
+                - generic [ref=e609]: deepseek-official
+                - generic [ref=e610]: 官方路由
+              - generic [ref=e611]: https://api.deepseek.com · sk-7e…7746
+            - generic [ref=e613]:
+              - generic [ref=e614]:
+                - generic [ref=e615]: 今日消耗
+                - generic [ref=e616]: ≈16.19 CNY
+                - generic [ref=e617]: "|"
+                - generic [ref=e618]: 余额
+                - generic [ref=e619]: 818.45 CNY
+              - generic [ref=e620]: 赠送余额 0.00
+        - generic [ref=e621]:
+          - generic [ref=e622]: 附加 API Key
+          - paragraph [ref=e623]: 手动添加不在 dsh providers 配置中的 key（仅用于余额查询，明文保存在 $DSH_HOME/dsh-get-balance.json）
+          - button "+ 附加 API Key" [ref=e624] [cursor=pointer]
+      - option "全部" [selected]
+      - option "api.deepseek.com"
+      - option "zai-coding-cn"
+      - option "openrouter"
+      - option "全部" [selected]
+      - option "deepseek-official (sk-7e…7746)"
+      - option "ds-self (sk-04…7c50)"
+      - option "zai-coding-cn"
+      - option "openrouter"
+      - option "全部" [selected]
+      - option "api.deepseek.com·deepseek-v4-flash"
+      - option "zai-coding-cn·glm-5.3-flash"
+      - option "openrouter·z-ai/glm-5.3-flash"

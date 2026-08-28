@@ -464,7 +464,13 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
                                 <div key={i}>
                                   <div className="dshb-prov-costline">
                                     <span>{t('summaryTodayCost')}</span>
-                                    <span className="dshb-balance-num">≈{fmtAmount(kc?.amount ?? 0)} {kcCurrency}</span>
+                                    {/* 今日费用与余额各自独立：余额到达即显示，费用有自己的加载态（…），
+                                        数据未到时不再显示成 ≈0 冒充真实值。 */}
+                                    {kc !== undefined
+                                      ? <span className="dshb-balance-num">≈{fmtAmount(kc.amount)} {kcCurrency}</span>
+                                      : (costLoading
+                                          ? <span className="dshb-balance-num dshb-balance-loading" aria-label={t('summaryTodayCost')}>…</span>
+                                          : <span className="dshb-prov-sub">—</span>)}
                                     <span className="dshb-balance-sep">|</span>
                                     <span>{t('summaryBalance')}</span>
                                     <span className="dshb-balance-num">{balanceText(info.total_balance)} {info.currency}</span>

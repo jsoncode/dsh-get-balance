@@ -689,10 +689,11 @@ function readSessionLog(sessionId: string): SessionLike | undefined {
  * 血缘 BFS，逐层整包解码子会话日志并折叠。返回的样本表用子会话 id 做键前缀
  * 命名空间，避免与主会话的 (turn,step) 键冲突。子代理是独立会话（header 标记
  * origin='subagent' / delegationDepth>0 / parentSession），与父任务同 cwd。
+ * 解码是同步的：逐文件让出事件循环，避免阻塞并发 op（如余额查询）。
  * @param sessionId - 当前会话 id（血缘根）。
  * @param cwd - 当前会话的项目目录（决定扫描哪个项目目录；缺省 _no-cwd）。
  */
-function foldDescendantSamples(sessionId: string, cwd: string | undefined): Map<string, StepSample> {
+async function foldDescendantSamples(sessionId: string, cwd: string | undefined): Promise<Map<string, StepSample>> {
   const out = new Map<string, StepSample>()
   if (sessionId.length === 0) return out
   const root = sessionsRoot()
@@ -703,6 +704,7 @@ function foldDescendantSamples(sessionId: string, cwd: string | undefined): Map<
   // BFS：从当前会话出发沿 parentSession 向下找直接/间接子会话。
   const visited = new Set<string>([sessionId])
   const queue: string[] = [sessionId]
+  let parsedCount = 0
   while (queue.length > 0) {
     const parent = queue.shift() as string
     for (const [childId, rec] of byId) {
@@ -713,6 +715,7 @@ function foldDescendantSamples(sessionId: string, cwd: string | undefined): Map<
       if (text === undefined) continue
       const { samples } = foldSessionEvents(parseLogEvents(text))
       for (const [key, sample] of samples) out.set(childId + ':' + key, sample)
+      if ((++parsedCount & 3) === 0) await new Promise((resolve) => setImmediate(resolve))
     }
   }
   return out
@@ -740,7 +743,13 @@ export async function computeCosts(
 ): Promise<CostResult> {
   // 当前会话自身事件：内存优先，磁盘日志兜底。
   const live = sessionId.length > 0 ? sessions?.get(sessionId) : undefined
-  const own: SessionLike | undefined = live ?? (sessionId.length > 0 ? readSessionLog(sessionId) : undefined)
+  let own: SessionLike | undefined = live
+  if (own === undefined && sessionId.length > 0) {
+    // 磁盘兜底是整包解压（可能很慢）：先让出事件循环，让并发请求（如余额
+    // 查询）先得到处理，避免余额显示被本 op 的解析卡住。
+    await new Promise((resolve) => setImmediate(resolve))
+    own = readSessionLog(sessionId)
+  }
   const cwd = own?.header?.cwd !== undefined && own.header.cwd.length > 0 ? own.header.cwd : fallbackCwd
   const { samples, maxTurn } = own?.events !== undefined
     ? foldSessionEvents(own.events)
@@ -750,7 +759,7 @@ export async function computeCosts(
     if (sample.model !== undefined) sessionModel = sample.model
   }
   // 子代理并入「本会话」：血缘 BFS 折叠子孙会话（独立日志，全量事件，无今日过滤）。
-  const descendantSamples = foldDescendantSamples(sessionId, own?.header?.cwd)
+  const descendantSamples = await foldDescendantSamples(sessionId, own?.header?.cwd)
   const merged = new Map(samples)
   for (const [key, sample] of descendantSamples) merged.set('sub:' + key, sample)
   const sessionPriced = priceSamples(merged.values(), config.tiers, config, providerBaseUrls)
@@ -877,6 +886,7 @@ async function scanToday(
   }
   const allByProvider = new Map<string, ProviderToday>()
   const projectByProvider = new Map<string, ProviderToday>()
+  let parsedCount = 0
   for (const project of projects) {
     const projectDirPath = join(root, project)
     let sessionIds: string[]
@@ -900,12 +910,14 @@ async function scanToday(
         }
         if (stat.mtimeMs < todayStart) continue
         // 共享持久缓存：每个日志文件的解压 + 解析只做一次（文件变化由 mtime/size 失效）。
-        const sample = getParsedFile({ path: candidate.path, isZstd: candidate.zstd, mtimeMs: stat.mtimeMs, size: stat.size })
+        const sample = await getParsedFile({ path: candidate.path, isZstd: candidate.zstd, mtimeMs: stat.mtimeMs, size: stat.size })
         if (sample === undefined) continue
         const isProject = sample.cwd !== undefined && samePath(sample.cwd, currentCwd)
         const todaySample = aggregateTodayFile(sample, todayStart, config, providerBaseUrls)
         mergeProviderToday(allByProvider, todaySample.byProvider)
         if (isProject) mergeProviderToday(projectByProvider, todaySample.byProvider)
+        // 解压/解析是同步的：每 8 个文件让出事件循环，避免阻塞并发请求（如余额查询）。
+        if ((++parsedCount & 7) === 0) await new Promise((resolve) => setImmediate(resolve))
         break
       }
     }

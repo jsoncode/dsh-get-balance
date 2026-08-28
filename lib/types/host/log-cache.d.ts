@@ -40,6 +40,11 @@ export interface FileSample {
  */
 export declare function decodeLog(path: string, isZstd: boolean): string | undefined;
 /**
+ * 异步解压一个日志文件（语义与 decodeLog 一致，逐帧解压；读文件异步，解压
+ * 分块让出事件循环 —— 大日志的整包同步解压会卡住并发 op 的响应，如余额查询）。
+ */
+export declare function decodeLogAsync(path: string, isZstd: boolean): Promise<string | undefined>;
+/**
  * 解析一个日志文件为样本列表（header cwd + step/end 计数 + assistant/message 用量）。
  * 用途分类：该步 assistant 消息的 content 部件含 tool-call → 工具调用；否则含 text
  * → 文本回复；否则 → 纯推理（整步四桶合计归入该类 —— token 粒度只到步骤）。
@@ -48,9 +53,12 @@ export declare function decodeLog(path: string, isZstd: boolean): string | undef
  * 与正文等大的行引用数组副本，降低单文件解析的瞬时内存峰值。
  */
 export declare function parseLogFile(path: string, isZstd: boolean): FileSample | undefined;
+/** 异步版本：解压与逐行解析都定期让出事件循环（大日志不阻塞并发 op 响应）。 */
+export declare function parseLogFileAsync(path: string, isZstd: boolean): Promise<FileSample | undefined>;
 /**
  * 取一个日志文件的解析样本（stat 校验 → 内存 LRU 命中 → 真解析并缓存）。
- * 文件内容变化（mtime/size）自动失效重解析。
+ * 文件内容变化（mtime/size）自动失效重解析。异步：大日志解压/解析分块让出
+ * 事件循环，不阻塞并发 op（如余额查询）的响应。
  */
-export declare function getParsedFile(ref: FileRef): FileSample | undefined;
+export declare function getParsedFile(ref: FileRef): Promise<FileSample | undefined>;
 //# sourceMappingURL=log-cache.d.ts.map

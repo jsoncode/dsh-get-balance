@@ -60,6 +60,9 @@ export interface SeriesStoreFile {
   coveredFrom?: string
   /** 已完整覆盖的连续日区间终点（含；恒 < 今天）。 */
   coveredTo?: string
+  /** 上次「今天」实时桶写入存储的时刻（epoch ms；跨进程持久化 —— 近期已写过则
+   *  日范围查询直接复用存储里的今天桶，不重扫当天日志）。 */
+  todayUpdatedAt?: number
 }
 
 /** 存储文件名（$DSH_HOME 下）。 */
@@ -127,6 +130,7 @@ export async function loadSeriesStore(cachePath?: string | null): Promise<Series
         if (typeof parsed.days !== 'object' || parsed.days === null || Array.isArray(parsed.days)) return
         if (parsed.coveredFrom !== undefined && typeof parsed.coveredFrom !== 'string') return
         if (parsed.coveredTo !== undefined && typeof parsed.coveredTo !== 'string') return
+        if (parsed.todayUpdatedAt !== undefined && typeof parsed.todayUpdatedAt !== 'number') return
         store = parsed
       } catch {
         await backupCorruptStore()

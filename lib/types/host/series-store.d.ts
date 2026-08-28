@@ -52,6 +52,9 @@ export interface SeriesStoreFile {
     coveredFrom?: string;
     /** 已完整覆盖的连续日区间终点（含；恒 < 今天）。 */
     coveredTo?: string;
+    /** 上次「今天」实时桶写入存储的时刻（epoch ms；跨进程持久化 —— 近期已写过则
+     *  日范围查询直接复用存储里的今天桶，不重扫当天日志）。 */
+    todayUpdatedAt?: number;
 }
 /** 空存储。 */
 export declare function emptyStore(): SeriesStoreFile;

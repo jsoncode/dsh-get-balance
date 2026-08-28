@@ -26,6 +26,13 @@ import type { CostSeriesResult, PriceConfig, PriceTier, PurposeTokens, SeriesPoi
 /** 支持的 range 值（ops.ts 据此校验）。 */
 export const SERIES_RANGES = ['hour1', 'today', 'week7', 'month1', 'all'] as const
 
+/**
+ * 「今天」实时桶的复用窗口（毫秒）：日范围查询在窗口内直接复用存储里的今天桶，
+ * 不重扫当天日志。冷缓存下当天文件解析是每次日范围查询的主要耗时（数秒），
+ * 而图表对今天的实时性要求不高（≤30s 可接受；实时范围 hour1/today 不受影响）。
+ */
+const TODAY_UPSERT_TTL_MS = 30_000
+
 const MIN10 = 10 * 60_000
 const HOUR = 60 * 60_000
 const DAY = 24 * HOUR
@@ -307,24 +314,27 @@ function collectFiles(root: string | undefined): FileRef[] {
 
 /**
  * 实时计算 hour1 / today（小时桶，纯当天日志，不读历史存储）。
+ * 日志解压/解析是同步操作：逐文件处理并定期让出事件循环，避免长时间阻塞
+ * 并发 op（如余额查询）的响应。
  * @returns 结果 + 本次解析的样本（today 调用方用于覆盖写存储当天条目）。
  */
-function computeLive(
+async function computeLive(
   range: 'hour1' | 'today',
   now: number,
   offsetMs: number,
   root: string | undefined,
   config: PriceConfig,
   providerBaseUrls: Record<string, string>,
-): { result: CostSeriesResult; samples: FileSample[] } {
+): Promise<{ result: CostSeriesResult; samples: FileSample[] }> {
   const coarseStart = range === 'hour1'
     ? now - 60 * MIN10
     : shiftedDayStart(now + offsetMs) - offsetMs
   const refs = collectFiles(root).filter((ref) => ref.mtimeMs >= coarseStart)
   const samples: FileSample[] = []
-  for (const ref of refs) {
-    const sample = getParsedFile(ref)
+  for (let i = 0; i < refs.length; i++) {
+    const sample = await getParsedFile(refs[i] as FileRef)
     if (sample !== undefined) samples.push(sample)
+    if ((i & 7) === 7) await new Promise((resolve) => setImmediate(resolve))
   }
   const axis = buildAxis(range, now, offsetMs, 0)
   const points: SeriesPoint[] = []
@@ -422,7 +432,7 @@ async function collectDayGroups(
   const dayMaps = new Map<string, Map<string, DayGroup>>()
   let lastYieldAt = Date.now()
   for (const ref of refs) {
-    const sample = getParsedFile(ref)
+    const sample = await getParsedFile(ref)
     if (sample === undefined) continue
     const workspace = sample.cwd ?? ''
     for (const st of sample.steps) {
@@ -491,6 +501,15 @@ function decodeStoredDay(day: StoredDay | undefined): DayGroup[] {
     purpose: { tool: sg.pt[0], text: sg.pt[1], reasoning: sg.pt[2] },
     tokens: sg.tk,
   }))
+}
+
+/** 存储里的某天 → 聚合 Map（键与 aggregateDayGroups 一致，供图表记录直接消费）。 */
+function dayGroupsFromStored(day: StoredDay | undefined): Map<string, DayGroup> {
+  const out = new Map<string, DayGroup>()
+  for (const g of decodeStoredDay(day)) {
+    out.set(g.provider + '\u0000' + g.model + '\u0000' + g.workspace, g)
+  }
+  return out
 }
 
 /** 一天的聚合组 → 图表记录（金额用当前价格档 × peak/offPeak 现算）。 */
@@ -731,13 +750,14 @@ async function doComputeSeries(
 
   // 实时范围：hour1 / today（当天日志，内存缓存解析；today 顺带覆盖写存储当天条目）。
   if (range === 'hour1') {
-    const { result } = computeLive('hour1', now, offsetMs, root, config, providerBaseUrls)
+    const { result } = await computeLive('hour1', now, offsetMs, root, config, providerBaseUrls)
     return result
   }
   if (range === 'today') {
-    const { result, samples } = computeLive('today', now, offsetMs, root, config, providerBaseUrls)
+    const { result, samples } = await computeLive('today', now, offsetMs, root, config, providerBaseUrls)
     const todayGroups = aggregateDayGroups(samples, todayStart, Infinity, config)
     store.days[todayKey] = { g: storedOf(todayGroups.values()) }
+    store.todayUpdatedAt = now
     touchSeriesStore()
     return result
   }
@@ -755,22 +775,35 @@ async function doComputeSeries(
   }
 
   // 当天实时聚合（历史范围的今天桶 + 覆盖写存储当天条目）。
-  const todayRefs = collectFiles(root).filter((ref) => ref.mtimeMs >= todayStart)
-  const todaySamples: FileSample[] = []
-  for (const ref of todayRefs) {
-    const sample = getParsedFile(ref)
-    if (sample !== undefined) todaySamples.push(sample)
+  // 近期（含跨进程持久化的 todayUpdatedAt）已写过今天桶 → 直接复用存储，不再
+  // 重扫当天日志：冷缓存下今天文件解析是每次日范围查询的主要耗时（数秒）。
+  const todayUpdatedAt = store.todayUpdatedAt ?? 0
+  let todayGroups: Map<string, DayGroup>
+  let hasTodayData: boolean
+  if (now - todayUpdatedAt < TODAY_UPSERT_TTL_MS && store.days[todayKey] !== undefined) {
+    todayGroups = dayGroupsFromStored(store.days[todayKey])
+    hasTodayData = true
+  } else {
+    const todayRefs = collectFiles(root).filter((ref) => ref.mtimeMs >= todayStart)
+    const todaySamples: FileSample[] = []
+    for (let i = 0; i < todayRefs.length; i++) {
+      const sample = await getParsedFile(todayRefs[i] as FileRef)
+      if (sample !== undefined) todaySamples.push(sample)
+      if ((i & 7) === 7) await new Promise((resolve) => setImmediate(resolve))
+    }
+    todayGroups = aggregateDayGroups(todaySamples, todayStart, Infinity, config)
+    hasTodayData = todaySamples.length > 0
+    store.days[todayKey] = { g: storedOf(todayGroups.values()) }
+    store.todayUpdatedAt = now
+    touchSeriesStore()
   }
-  const todayGroups = aggregateDayGroups(todaySamples, todayStart, Infinity, config)
-  store.days[todayKey] = { g: storedOf(todayGroups.values()) }
-  touchSeriesStore()
 
   // 轴：week7/month1 由 now 定；all 依赖最早一天。
   let minTime: number
   if (range === 'all') {
     const dayKeys = Object.keys(store.days)
     const earliestKey = dayKeys.length > 0 ? dayKeys.reduce((a, b) => (a < b ? a : b)) : todayKey
-    minTime = dayKeys.length > 0 || todaySamples.length > 0 ? dayStartOfKey(earliestKey, offsetMs) : Infinity
+    minTime = dayKeys.length > 0 || hasTodayData ? dayStartOfKey(earliestKey, offsetMs) : Infinity
   } else {
     minTime = 0
   }

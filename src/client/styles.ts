@@ -24,6 +24,7 @@ export const css = [
   '.dshb-input::placeholder{color:var(--dsw-alias-label-tertiary,#aaa)}',
   '.dshb-spinner{width:14px;height:14px;border-radius:50%;border:2px solid var(--dsw-alias-border-l2,#ccc);border-top-color:var(--dsw-alias-brand-primary,#1668e3);animation:dshb-spin .8s linear infinite;margin:12px auto}',
   '@keyframes dshb-spin{to{transform:rotate(360deg)}}',
+  '@keyframes dshb-pulse{0%,100%{opacity:1}50%{opacity:.35}}',
   // 侧边栏底部入口：样式对齐 DSH 设置按钮（sidebar.settings 的 trigger）——
   // 高 42px（窄栏 36px）、字号 14px/行高 22px、宽模式左对齐、图标 + 文字（仅宽模式显示文字）
   '.dshb-footer-btn{box-sizing:border-box;position:relative;cursor:pointer;width:calc(100% + 4px);height:42px;color:var(--dsw-alias-label-primary);background:transparent;border:none;border-radius:12px;flex:none;align-items:center;gap:8px;margin:4px -2px;padding:0 10px 0 8px;font-family:inherit;font-size:14px;line-height:22px;display:flex;overflow:hidden}',
@@ -176,6 +177,8 @@ export const css = [
   // 余额 tab 每个 API key 行：今日消耗 ≈xx CNY | 余额 xx CNY
   '.dshb-prov-costline{display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:13px;margin-bottom:2px;white-space:nowrap}',
   '.dshb-balance-num{font-weight:600;color:#16a34a;font-variant-numeric:tabular-nums}',
+  // 今日费用独立加载态（… 呼吸闪烁）：余额到达即显示，费用计算未完成时占位。
+  '.dshb-balance-loading{color:var(--dsw-alias-label-tertiary,#999);font-weight:400;animation:dshb-pulse 1.2s ease-in-out infinite}',
   '.dshb-balance-sep{color:var(--dsw-alias-label-tertiary,#bbb)}',
   // 附加 key 区
   '.dshb-keys{margin-top:16px;border-top:1px dashed var(--dsw-alias-border-l3,#bbb);padding-top:12px}',

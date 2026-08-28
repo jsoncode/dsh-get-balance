@@ -7,7 +7,8 @@
  * 2. 费用：表格 —— 行为 API Key（token 列合并四行）× 类别
  *    （最近一次提问 / 本会话 / 今日·本项目 / 今日·全部），
  *    列为 未命中输入 / 缓存命中输入 / 输出 / 命中率 / 预估费用，首组为合计；
- * 3. 价格设置：价格档行内编辑 + 增删。
+ * 3. 价格设置：二级平台 tab（当前仅 DeepSeek）—— 时段配置 + 价格档行内编辑 + 增删，
+ *    后续新增其他平台定价时在 PRICE_PLATFORMS 加一项即可。
  */
 import type { RunFn } from '../rpc.ts';
 export interface BalanceModalProps {

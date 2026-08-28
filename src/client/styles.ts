@@ -123,6 +123,14 @@ export const css = [
   '.dshb-tab{padding:5px 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary,#666);font-size:13px;cursor:pointer;white-space:nowrap}',
   '.dshb-tab:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.1))}',
   '.dshb-tab-active{background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#1668e3));color:var(--dsw-alias-label-primary-foreground,#fff);border-color:transparent;font-weight:500}',
+  // 二级平台 tab（价格设置内）：小号胶囊分段，与主 tab 区分层级
+  '.dshb-subtabs{display:flex;gap:6px;margin-bottom:12px;flex:none}',
+  '.dshb-subtab{padding:3px 12px;border:1px solid var(--dsw-alias-border-l2,#ccc);border-radius:999px;background:transparent;color:var(--dsw-alias-label-secondary,#666);font-size:12px;cursor:pointer;white-space:nowrap}',
+  '.dshb-subtab:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.1))}',
+  '.dshb-subtab-active{background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary,#1668e3));border-color:transparent;color:var(--dsw-alias-label-primary-foreground,#fff);font-weight:500}',
+  // 二级平台面板：grid stacking（与弹框主体同模式），平台增多后切换二级 tab 不跳动
+  '.dshb-subpanes{display:grid;min-width:0}',
+  '.dshb-subpanes>*{grid-area:1/1;min-width:0}',
   // 弹框主体：grid stacking —— 三个 tab 面板叠放同一格，隐藏面板仍占位参与布局，
   // 弹框高度恒等于最高面板（价格设置页），保证其不出现滚动、切换 tab 不跳动
   '.dshb-modal-body{flex:1;overflow-y:auto;padding:16px 18px;min-width:0;min-height:0;display:grid}',

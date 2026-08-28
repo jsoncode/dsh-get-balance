@@ -70,8 +70,10 @@ A balance & cost plugin for DeepSeek Harness:
   entries: on-demand scan of `dshHomePath('sessions')` logs (`.jsonl` and
   `.jsonl.zstd`, frame-wise zstd decode, per-file memoized).
 
-### Price settings tab — official pricing-table layout
+### Price settings tab — platform sub-tabs + official pricing-table layout
 
+- **Platform sub-tabs** (currently DeepSeek only; more providers' pricing can be
+  added later as additional sub-tabs).
 - Mirrors the official price table layout minus the category column:
   `Model version` (colspan=2) + one column per model; three metric groups (input
   cache-hit / cache-miss / output, each rowspan=2) + off-peak/peak rows;

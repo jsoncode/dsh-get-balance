@@ -7,7 +7,8 @@
  * 2. 费用：表格 —— 行为 API Key（token 列合并四行）× 类别
  *    （最近一次提问 / 本会话 / 今日·本项目 / 今日·全部），
  *    列为 未命中输入 / 缓存命中输入 / 输出 / 命中率 / 预估费用，首组为合计；
- * 3. 价格设置：价格档行内编辑 + 增删。
+ * 3. 价格设置：二级平台 tab（当前仅 DeepSeek）—— 时段配置 + 价格档行内编辑 + 增删，
+ *    后续新增其他平台定价时在 PRICE_PLATFORMS 加一项即可。
  */
 
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react'
@@ -113,6 +114,9 @@ interface KeyView {
 
 type Tab = 'balance' | 'cost' | 'prices'
 
+/** 价格设置内的二级平台 tab key（后续新增其他平台定价时在此扩展联合类型）。 */
+type PricePlatform = 'deepseek'
+
 export interface BalanceModalProps {
   run: RunFn
   useOpen(): boolean
@@ -164,6 +168,11 @@ const COST_ROWS: Array<{ labelKey: string; pick: (c: CostResultView) => CostEntr
   { labelKey: 'costTodayAll', pick: (c) => c.todayAll },
 ]
 
+/** 价格设置内的平台 tab 清单（顺序即展示顺序；新增平台 = 加一项 + 一个 render 函数）。 */
+const PRICE_PLATFORMS: Array<{ key: PricePlatform; labelKey: string }> = [
+  { key: 'deepseek', labelKey: 'tabPlatformDeepseek' },
+]
+
 /** 全零四桶（某类别无该 Key 用量时展示用）。 */
 const ZERO_BUCKETS: BucketsView = { uncachedInput: 0, cacheRead: 0, cacheWrite: 0, output: 0 }
 
@@ -201,6 +210,8 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
   const autoSeconds = useAutoSeconds()
   const showBalance = useShowBalance()
   const [tab, setTab] = useState<Tab>('balance')
+  // 价格设置内的二级平台 tab（当前仅 DeepSeek，后续扩展其他平台）
+  const [pricePlatform, setPricePlatform] = useState<PricePlatform>('deepseek')
   // 定时更新配置弹框
   const [timingOpen, setTimingOpen] = useState(false)
   const [timingInput, setTimingInput] = useState('')
@@ -675,7 +686,8 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
     )
   }
 
-  const renderPricesTab = () => (
+  /** DeepSeek 平台定价：时段配置 + 官方价格表式价格档编辑。 */
+  const renderDeepseekPrices = () => (
     <div>
       <p className="dshb-hint">{t('pricesHint')}</p>
       {prices === null
@@ -791,6 +803,38 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
         )}
     </div>
   )
+
+  /**
+   * 价格设置容器：二级平台 tab 行 + 各平台面板。
+   * 面板与弹框主体一样采用 grid 叠放常驻：隐藏面板仍参与布局，
+   * 平台增多后切换二级 tab 也不会引起弹框高度跳动。
+   */
+  const renderPricesTab = () => {
+    const platformViews: Record<PricePlatform, () => ReactNode> = { deepseek: renderDeepseekPrices }
+    return (
+      <div>
+        <div className="dshb-subtabs" role="tablist" aria-label={t('tabPrices')}>
+          {PRICE_PLATFORMS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              role="tab"
+              aria-selected={pricePlatform === p.key}
+              className={'dshb-subtab' + (pricePlatform === p.key ? ' dshb-subtab-active' : '')}
+              onClick={() => setPricePlatform(p.key)}
+            >{t(p.labelKey)}</button>
+          ))}
+        </div>
+        <div className="dshb-subpanes">
+          {PRICE_PLATFORMS.map((p) => (
+            <div key={p.key} className={'dshb-pane' + (pricePlatform === p.key ? '' : ' dshb-pane-off')}>
+              {platformViews[p.key]()}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="dshb-backdrop" onClick={(e) => { if (e.target === e.currentTarget) close() }}>

@@ -24,10 +24,11 @@
     "check": "tsc -b --pretty false",
     "build": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\" && tsc -b && tsdown",
     "watch": "tsdown --watch",
-    "verify": "node scripts/verify-client.mjs",
+    "verify": "node scripts/verify-client.mjs && tsx scripts/verify-series.ts",
     "verify:config": "tsx scripts/verify-config-file.ts",
     "verify:dedup": "tsx scripts/verify-dedup.ts",
     "verify:attribution": "tsx scripts/verify-cost-attribution.ts",
+    "verify:series": "tsx scripts/verify-series.ts",
     "verify:i18n": "tsx scripts/check-i18n.ts",
     "release": "npm run check && npm run build && npm run verify && npm version patch -m \"release: v%s\" && git push --follow-tags",
     "publish:npm": "npm run check && npm run build && npm run verify && npm publish --access public --auth-type=legacy"

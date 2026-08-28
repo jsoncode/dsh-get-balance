@@ -197,6 +197,9 @@ export function CostTab({ run, getSession, tick, reloadTick, metaOf, active }: C
           setData(cached)
           setLoading(false)
           setError('')
+          // 遮罩不拦截点击：回填期间切到已缓存范围时同样收尾（否则遮罩一直挂着）。
+          setBackfilling(false)
+          backfillInFlightRef.current = false
         }
         return
       }

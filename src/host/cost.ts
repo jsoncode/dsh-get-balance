@@ -324,7 +324,7 @@ export function matchTier(model: string | undefined, prices: readonly PriceTier[
 }
 
 /** 按一组单价计费（每百万 tokens 单价）。 */
-function costOf(buckets: UsageBuckets, period: PricePeriodPrices | undefined): number {
+export function costOf(buckets: UsageBuckets, period: PricePeriodPrices | undefined): number {
   if (period === undefined) return 0
   return (
     buckets.uncachedInput * period.input
@@ -566,8 +566,10 @@ function parseLogHeader(line: string): { id: string; cwd?: string; parentSession
   }
 }
 
-/** 解析日志事件行（跳过首行 header）为 SessionEventLike[]（与内存会话同一视图）。 */
-function parseLogEvents(text: string): SessionEventLike[] {
+/**
+ * 解析日志事件行（跳过首行 header）为 SessionEventLike[]（与内存会话同一视图）。
+ */
+export function parseLogEvents(text: string): SessionEventLike[] {
   const events: SessionEventLike[] = []
   let first = true
   for (const line of text.split('\n')) {
@@ -769,7 +771,7 @@ const todayFileCache = new Map<string, { mtimeMs: number; size: number; todaySta
  * 解压一个日志文件：zstd 一律按帧魔数切分逐帧解压（zstdDecompressSync
  * 对多帧文件会静默丢弃首帧之后的帧，不能整包直解）；明文直接返回。
  */
-function decodeLog(path: string, isZstd: boolean): string | undefined {
+export function decodeLog(path: string, isZstd: boolean): string | undefined {
   let raw: Buffer
   try {
     raw = readFileSync(path)

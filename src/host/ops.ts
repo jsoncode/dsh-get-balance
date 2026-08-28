@@ -16,6 +16,7 @@ import { listDeepseekProviders, listProviderBaseUrls } from './providers.ts'
 import { queryBalances } from './balance.ts'
 import { readPluginConfig, savePluginConfig } from './config-file.ts'
 import { computeCosts, normalizePriceConfig, type SessionsService } from './cost.ts'
+import { computeSeries, SERIES_RANGES } from './series.ts'
 import { checkPluginUpdate } from './update.ts'
 import { getPluginUpdateStatus, startPluginUpdate } from './plugin-update.ts'
 import type { ExtraKey, OpRequest, OpResult, PriceConfig } from './types.ts'
@@ -83,6 +84,16 @@ export async function runOp(deps: OpDeps, request: OpRequest): Promise<OpResult>
         const providerBaseUrls = listProviderBaseUrls(deps.settings, deps.nsOf)
         const result = await computeCosts(sessionId, deps.sessions, await readPriceConfig(), process.cwd(), providerBaseUrls)
         return { ok: true, cost: result }
+      }
+      case 'costSeries': {
+        // 费用 tab 图表数据：时间范围分桶聚合（API Key / 平台 / 模型筛选在浏览器侧本地完成）。
+        const range = typeof request.range === 'string' ? request.range : ''
+        if (!(SERIES_RANGES as readonly string[]).includes(range)) {
+          return { ok: false, code: 'params-invalid', error: 'range must be one of ' + SERIES_RANGES.join('|') }
+        }
+        const providerBaseUrls = listProviderBaseUrls(deps.settings, deps.nsOf)
+        const series = await computeSeries(range, await readPriceConfig(), providerBaseUrls)
+        return { ok: true, series }
       }
       case 'pricesGet': {
         return { ok: true, config: await readPriceConfig() }

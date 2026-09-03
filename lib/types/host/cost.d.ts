@@ -2,8 +2,8 @@
  * dsh-get-balance —— 宿主半边：费用计算。
  *
  * 三条数据链：
- * 1. 内存会话（ctx.sessions.get）：遍历 session.events，复刻官方 tokenUsage
- *    投影的折叠语义 —— 'assistant/chunk'(chunk.type==='usage') 提供早期样本，
+ * 1. 内存会话（ctx.sessions.get）：经 snapshotEvents() 取全量事件日志，复刻官方
+ *    tokenUsage 投影的折叠语义 —— 'assistant/chunk'(chunk.type==='usage') 提供早期样本，
  *    'assistant/message' 提供同一 (turn,step) 的最终样本，后值覆盖前值，
  *    不重复计费；'request/context' 追踪当前模型与服务商用于匹配价格档。
  * 2. 磁盘会话兜底 + 子代理并入：已从内存注销的会话（如已结束的子代理，
@@ -43,8 +43,14 @@ export declare const DEFAULT_PEAK_WINDOWS: readonly TimeWindow[];
 export declare const DEFAULT_PRICES: PriceTier[];
 /** 内置默认完整价格配置。 */
 export declare const DEFAULT_PRICE_CONFIG: PriceConfig;
-/** 会话事件的最小读取视图（结构化声明，不依赖完整类型链）。 */
+/**
+ * 会话事件的最小读取视图（结构化声明，不依赖完整类型链）。
+ * 宿主 Session（内存存活会话）：宿主 5660f44 起 events getter 已移除，
+ * 日志读取走 snapshotEvents()（无参调用返回全量冻结快照）。
+ * 磁盘兜底视图（readSessionLog 本地构造）：直接携带解析好的 events 数组。
+ */
 export interface SessionLike {
+    snapshotEvents?: () => readonly SessionEventLike[];
     events?: readonly SessionEventLike[];
     header?: {
         cwd?: string;

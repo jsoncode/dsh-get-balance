@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { LANG, t, tErr } from '../i18n.ts'
+import { getLang, t, tErr } from '../i18n.ts'
 import { ansiToHtml } from '../ansi.ts'
 import type { RunFn } from '../rpc.ts'
 import type { UpdateInfo, UpdateStatusView, UpdateUi } from '../store.ts'
@@ -47,7 +47,7 @@ function statusView(status: UpdateStatusView | null): { text: string; cls: strin
   if (status === null || status.running) return { text: t('updateRunning'), cls: '' }
   if (status.done && status.exitCode === 0) return { text: t('updateSuccess'), cls: 'dshb-update-status-ok' }
   const code = status.exitCode === null ? '?' : String(status.exitCode)
-  return { text: t('updateFailed', { code }) + (status.error ? (LANG === 'zh' ? '：' : ': ') + status.error : ''), cls: 'dshb-update-status-err' }
+  return { text: t('updateFailed', { code }) + (status.error ? (getLang() === 'zh' ? '：' : ': ') + status.error : ''), cls: 'dshb-update-status-err' }
 }
 
 /** 极简 HTML 转义（占位文案经转义后插入 pre）。 */

@@ -16,6 +16,8 @@
 /** 浏览器侧插件上下文（宿主注入）。 */
 export interface ClientCtx {
     get<T = unknown>(name: string): T | undefined;
+    /** cordis 事件订阅（可选：宿主 locale 服务缺失时的 'locale/change' 兜底通道）。 */
+    on?(event: string, listener: (payload: unknown) => void): unknown;
     remote: {
         commands: {
             execute(sessionId: string, command: string): Promise<unknown>;

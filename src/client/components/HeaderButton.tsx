@@ -8,9 +8,8 @@
  * 弹出气泡弹框，逐 provider 列出当前会话统计（`ds-self 268K | ≈¥0.41`），
  * 鼠标移出按钮/气泡区域后自动收起。
  * 额外监听宿主会话快照（会话级插槽标准套件 useSession 注入）：每次 AI 请求
- * 完成（assistant/message 事件落盘，快照中新增一个更高 seq 的 assistant 节点）
- * 即重算 token 与预估费用 —— 不是流式逐 token 更新，而是每次请求完成更新一次
- * （一轮含多次请求时逐次更新）。余额刷新按请求走的接口区分：该请求走 DeepSeek
+ * 完成（会话快照 running 从 true 变为 false）即重算 token 与预估费用 ——
+ * 不是流式逐 token 更新，而是每次请求完成更新一次（一轮含多次请求时逐次更新）。余额刷新按请求走的接口区分：该请求走 DeepSeek
  * 官方接口（api.deepseek.com，cost op 的 lastRequestOfficial=true）才广播
  * bumpBalanceTick 让 footer 强制刷新余额；非官方接口只更新 token 与预估费用。
  */
@@ -54,23 +53,6 @@ function totalTokensOf(b: NonNullable<SessionCostView['buckets']>): number {
   return b.uncachedInput + b.cacheRead + b.cacheWrite + b.output
 }
 
-/** 会话快照中已落盘的 assistant 消息节点视图（仅取判定所需字段）。 */
-interface AssistantSeqView {
-  readonly nodes?: readonly { kind?: string; seq?: number }[]
-}
-
-/** 快照中 assistant 消息节点的最大事件 seq；没有任何 assistant 消息时为 0。
- *  assistant/message 事件在会话日志中按序追加，seq 单调递增；窗口截断只会
- *  丢弃最早的节点，最大 seq 不受影响，因此是「请求完成」的稳定信号。 */
-function maxAssistantSeqOf(nodes: readonly { kind?: string; seq?: number }[] | undefined): number {
-  if (!Array.isArray(nodes)) return 0
-  let max = 0
-  for (const node of nodes) {
-    if (node && node.kind === 'assistant' && typeof node.seq === 'number' && node.seq > max) max = node.seq
-  }
-  return max
-}
-
 export interface HeaderButtonProps {
   /** 当前会话 id（插槽标准 props）。 */
   sessionId: string
@@ -84,7 +66,7 @@ export interface HeaderButtonProps {
    * 宿主注入的会话快照选择 hook（会话级插槽标准套件；运行时提供
    * 'session' → useSession）。缺省时不做「请求完成」监听。
    */
-  useSession?(selector: (s: { nodes?: readonly { kind?: string; seq?: number }[] }) => unknown): unknown
+  useSession?(selector: (s: { running?: boolean }) => unknown): unknown
   /** 余额刷新广播：刚完成的请求走 DeepSeek 官方接口时调用，footer 随之强制刷新余额。 */
   bumpBalanceTick?(): void
 }
@@ -103,13 +85,12 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
   // providers 展示名缓存（路由 key → label），气泡弹框展示用。
   const [providerLabels, setProviderLabels] = useState<Record<string, string> | null>(null)
 
-  // 已落盘的 assistant 消息最大事件 seq：每次 AI 请求完成（assistant/message）
-  // 都会让它增大，作为「请求完成」的稳定信号（流式 chunk 不改变它）。
-  const assistantSeq = useSession ? (useSession((s: AssistantSeqView) => maxAssistantSeqOf(s.nodes)) as number) : 0
+  // 会话请求运行状态：running 从 true 变为 false 表示一次请求完成。
+  const running = useSession ? (useSession((s: { running?: boolean }) => s.running ?? false) as boolean) : false
   // 会话切换时重置观察状态（组件实例可能被复用）。
   const prevSessionId = useRef<string | null>(null)
-  // 历史最大 assistant seq：超过它即视为一次新的 AI 请求完成。
-  const maxAssistantSeq = useRef<number | null>(null)
+  // 上一次的 running 值：检测 true → false 转换。
+  const prevRunning = useRef<boolean>(false)
 
   /**
    * 刷新 token 与预估费用（cost op）。gateBalance=true 时（请求完成路径）：
@@ -162,28 +143,25 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
     void refresh()
   }, [refresh, tick, priceTick])
 
-  // 会话切换：清空观察状态，避免把上一会话的 seq 当作增量误触发。
+  // 会话切换：清空观察状态，避免把上一会话的运行状态误判为完成信号。
   useEffect(() => {
     if (prevSessionId.current !== sessionId) {
       prevSessionId.current = sessionId
-      maxAssistantSeq.current = null
+      prevRunning.current = false
     }
   }, [sessionId])
 
-  // 每次 AI 请求完成（assistant/message 落盘 → 快照出现更高 seq 的 assistant 节点）：
+  // 每次 AI 请求完成（running 从 true 变为 false）：
   // 立即重算 token 与预估费用；若该请求走 DeepSeek 官方接口，附带广播 bumpBalanceTick
-  // （footer 余额随之强制刷新）。首次观察只记录历史存量（会话已有历史消息），不触发。
+  // （footer 余额随之强制刷新）。首次挂载只记录当前状态，不触发。
   useEffect(() => {
     if (useSession === undefined) return
-    if (maxAssistantSeq.current === null) {
-      maxAssistantSeq.current = assistantSeq
-      return
-    }
-    if (assistantSeq > maxAssistantSeq.current) {
-      maxAssistantSeq.current = assistantSeq
+    const wasRunning = prevRunning.current
+    prevRunning.current = running
+    if (wasRunning && !running) {
       void refresh(true)
     }
-  }, [useSession, assistantSeq, refresh])
+  }, [useSession, running, refresh])
 
   // 数字「上下轮播」动画：token 紧凑缩写（K/M/B/T/P 后缀列静态）、金额
   // （≈¥ 前缀之外的数字部分逐位滚动）。

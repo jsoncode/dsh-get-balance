@@ -16,6 +16,7 @@
 
 import { injectStyles } from './styles.ts'
 import { makeRun, type RunFn } from './rpc.ts'
+import { setLang } from './i18n.ts'
 import { makeBalanceModalStore, type UpdateInfo } from './store.ts'
 import { FooterButton } from './components/FooterButton.tsx'
 import { HeaderButton } from './components/HeaderButton.tsx'
@@ -35,6 +36,8 @@ const FOOTER_ENTRY_ID = 'dsh-get-balance'
 /** 浏览器侧插件上下文（宿主注入）。 */
 export interface ClientCtx {
   get<T = unknown>(name: string): T | undefined
+  /** cordis 事件订阅（可选：宿主 locale 服务缺失时的 'locale/change' 兜底通道）。 */
+  on?(event: string, listener: (payload: unknown) => void): unknown
   remote: {
     commands: {
       execute(sessionId: string, command: string): Promise<unknown>
@@ -59,6 +62,28 @@ export function createPlugin(): ClientPluginModule {
     inject: ['slots', 'remote', 'remote.commands', 'timer'],
 
     apply(ctx: ClientCtx) {
+      // ─── 语言跟随宿主：订阅宿主 locale 服务（软依赖）─────────────────
+      // 插件文案经 t()/getLang() 取词；slot 出口订阅宿主 locale revision，
+      // 语言切换时所有出口重渲染，t() 按当前 lang 解析即完成切换。宿主在
+      // locale 插件激活时才同步 <html lang>（早于用户持久化偏好的采纳），
+      // 静态解析只作 locale 服务缺失时的兜底。
+      interface LocaleFace {
+        getSnapshot(): { active: string }
+        subscribe(fn: () => void): () => void
+      }
+      const toLang = (active: string): 'zh' | 'en' => (/^zh/i.test(active) ? 'zh' : 'en')
+      const locale = ctx.get<LocaleFace>('locale')
+      if (locale !== undefined) {
+        const syncLang = (): void => { setLang(toLang(locale.getSnapshot().active)) }
+        syncLang()
+        locale.subscribe(syncLang)
+      } else if (typeof ctx.on === 'function') {
+        ctx.on('locale/change', (snapshot: unknown) => {
+          const active = (snapshot as { active?: string } | undefined)?.active
+          if (typeof active === 'string') setLang(toLang(active))
+        })
+      }
+
       const run: RunFn = makeRun(ctx)
       const {
         store: modalStore, useOpen, autoStore, tickStore, bumpTick, useTick, useAutoSeconds,
@@ -178,7 +203,7 @@ export function createPlugin(): ClientPluginModule {
             run={run}
             useTick={useTick}
             usePriceTick={usePriceTick}
-            useSession={props.useSession as ((selector: (s: { nodes?: readonly { kind?: string; seq?: number }[] }) => unknown) => unknown) | undefined}
+            useSession={props.useSession as ((selector: (s: { running?: boolean }) => unknown) => unknown) | undefined}
             bumpBalanceTick={bumpBalanceTick}
           />
         ),

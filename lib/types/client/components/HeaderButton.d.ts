@@ -8,9 +8,8 @@
  * 弹出气泡弹框，逐 provider 列出当前会话统计（`ds-self 268K | ≈¥0.41`），
  * 鼠标移出按钮/气泡区域后自动收起。
  * 额外监听宿主会话快照（会话级插槽标准套件 useSession 注入）：每次 AI 请求
- * 完成（assistant/message 事件落盘，快照中新增一个更高 seq 的 assistant 节点）
- * 即重算 token 与预估费用 —— 不是流式逐 token 更新，而是每次请求完成更新一次
- * （一轮含多次请求时逐次更新）。余额刷新按请求走的接口区分：该请求走 DeepSeek
+ * 完成（会话快照 running 从 true 变为 false）即重算 token 与预估费用 ——
+ * 不是流式逐 token 更新，而是每次请求完成更新一次（一轮含多次请求时逐次更新）。余额刷新按请求走的接口区分：该请求走 DeepSeek
  * 官方接口（api.deepseek.com，cost op 的 lastRequestOfficial=true）才广播
  * bumpBalanceTick 让 footer 强制刷新余额；非官方接口只更新 token 与预估费用。
  */
@@ -29,10 +28,7 @@ export interface HeaderButtonProps {
      * 'session' → useSession）。缺省时不做「请求完成」监听。
      */
     useSession?(selector: (s: {
-        nodes?: readonly {
-            kind?: string;
-            seq?: number;
-        }[];
+        running?: boolean;
     }) => unknown): unknown;
     /** 余额刷新广播：刚完成的请求走 DeepSeek 官方接口时调用，footer 随之强制刷新余额。 */
     bumpBalanceTick?(): void;

@@ -14,7 +14,7 @@ import { BarChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsCoreOption } from 'echarts/core'
-import { currencySymbol, fmtAmount, fmtCompact, fmtTokens, LANG, t } from '../i18n.ts'
+import { currencySymbol, fmtAmount, fmtCompact, fmtTokens, getLang, t } from '../i18n.ts'
 
 echarts.use([BarChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
@@ -138,7 +138,7 @@ export function cacheTooltip(params: unknown[]): string {
   }
   if (total > 0) {
     const rate = (hit / total) * 100
-    html += '<div style="margin-top:4px;border-top:1px solid rgba(128,128,128,.25);padding-top:4px">' + t('cacheHitRate') + (LANG === 'zh' ? '：' : ': ') + '<b>' + rate.toFixed(1) + '%</b></div>'
+    html += '<div style="margin-top:4px;border-top:1px solid rgba(128,128,128,.25);padding-top:4px">' + t('cacheHitRate') + (getLang() === 'zh' ? '：' : ': ') + '<b>' + rate.toFixed(1) + '%</b></div>'
   }
   return html
 }

@@ -7,17 +7,18 @@
  * 会话可能中途切换 provider：按钮展示的是**合并统计结果**，**悬停**按钮
  * 弹出气泡弹框，逐 provider 列出当前会话统计（`ds-self 268K | ≈¥0.41`），
  * 鼠标移出按钮/气泡区域后自动收起。
- * 额外监听会话事件（三条冗余触发路径，任一命中即重算，350ms 窗口合并）：
+ * 额外监听会话事件（三条冗余触发路径，350ms 合并 + 1.5s 节流，一次只查一次
+ * cost op，且只更新 token 与预估费用）：
  * 1. useChat（插槽标准套件，主信号）：会话 chat 快照的已落盘节点里出现更高的
  *    assistant 消息 seq —— assistant/message 事件落盘即产生该节点，正是「一次
  *    响应结束」；
  * 2. sessions 服务的 eventSource（直连兜底）：窗口追加 assistant/message 事件
  *    时立即回调，不依赖插槽标准套件；
  * 3. useSession（插槽标准套件）：快照 running 从 true 变为 false —— 整轮结束
- *    （含子代理并入的用量）时补一次。
- * 余额刷新按请求走的接口区分：该请求走 DeepSeek 官方接口（api.deepseek.com，
- * cost op 的 lastRequestOfficial=true）才广播 bumpBalanceTick 让 footer 强制
- * 刷新余额；非官方接口只更新 token 与预估费用。
+ *    时补一次，且**只有这条路径**会带 gate：最近一次完成的请求走 DeepSeek 官方
+ *    接口（api.deepseek.com，cost op 的 lastRequestOfficial=true）才广播
+ *    bumpBalanceTick 让 footer 强制刷新余额 —— 即每轮最多一次余额接口请求。
+ *    前两条路径（每次响应结束）不碰余额接口，只更新 token 与预估费用。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -86,8 +87,16 @@ function maxAssistantSeqOf(nodes: readonly ChatNodeView[] | undefined): number {
   return max
 }
 
-/** 多个完成信号合并为一次 cost 查询的窗口（毫秒）。 */
+/**
+ * 多个完成信号合并为一次 cost 查询的窗口（毫秒）——同一次响应结束会同时命中
+ * 多条信号，合并后只查一次。
+ */
 const REFRESH_COALESCE_MS = 350
+/**
+ * 两次「事件驱动」刷新之间的最小间隔（毫秒，节流）：一轮含多步时不会连续打
+ * 宿主；窗口内最后一次信号由尾随刷新兜底，最终值不会丢。
+ */
+const REFRESH_MIN_INTERVAL_MS = 1500
 
 export interface HeaderButtonProps {
   /** 当前会话 id（插槽标准 props）。 */
@@ -196,20 +205,34 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
     void refresh()
   }, [refresh, tick, priceTick])
 
-  // ─── 完成信号 → 合并调度 ─────────────────────────────────────────
-  // 一次响应结束会同时命中多个信号（assistant 节点落盘、running 翻转），
-  // 350ms 窗口内合并为一次 cost 查询；窗口内只要有一次带 gate，就带上余额刷新。
+  // ─── 完成信号 → 合并 + 节流调度 ──────────────────────────────────
+  // 一次响应结束会同时命中多个信号（assistant 节点落盘、事件流追加），
+  // 350ms 窗口内合并为一次 cost 查询；两次查询之间至少间隔 1500ms，窗口内
+  // 最后一次信号由尾随刷新兜底。gate（余额刷新）只在整轮结束时带上。
   const coalesceTimerRef = useRef<number | null>(null)
   const gateRef = useRef(false)
+  const lastRefreshAtRef = useRef(0)
+  const busyRef = useRef(false)
   const scheduleRefresh = useCallback((gate: boolean): void => {
     if (gate) gateRef.current = true
     if (coalesceTimerRef.current !== null) return
+    const wait = Math.max(
+      REFRESH_COALESCE_MS,
+      lastRefreshAtRef.current + REFRESH_MIN_INTERVAL_MS - Date.now(),
+    )
     coalesceTimerRef.current = window.setTimeout(() => {
       coalesceTimerRef.current = null
+      // 上一次查询仍在途：稍后重试（尾随刷新），避免请求叠加。
+      if (busyRef.current) {
+        scheduleRefresh(false)
+        return
+      }
       const withGate = gateRef.current
       gateRef.current = false
-      void refresh(withGate)
-    }, REFRESH_COALESCE_MS)
+      lastRefreshAtRef.current = Date.now()
+      busyRef.current = true
+      void refresh(withGate).finally(() => { busyRef.current = false })
+    }, Math.max(0, wait))
   }, [refresh])
 
   // 会话切换：清空观察状态，避免把上一会话的信号误判为本次完成。
@@ -222,26 +245,17 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
   }, [sessionId])
 
   // 主信号：assistant 消息节点落盘（最大 seq 变大）→ 一次 AI 响应结束。
-  // 首次观察只记录存量（挂载时已有历史消息），不触发。
+  // 只更新 token 与预估费用（不查余额接口）。首次观察只记录存量，不触发。
   useEffect(() => {
     if (useChat === undefined) return
     const previous = prevAssistantSeq.current
     prevAssistantSeq.current = assistantSeq
     if (previous === null || assistantSeq <= previous) return
-    scheduleRefresh(true)
+    scheduleRefresh(false)
   }, [useChat, assistantSeq, scheduleRefresh])
 
-  // 兜底信号：running 从 true 变为 false（整轮结束；子代理用量并入本会话时补一次）。
-  // 首次挂载只记录当前状态，不触发。
-  useEffect(() => {
-    if (useSession === undefined) return
-    const wasRunning = prevRunning.current
-    prevRunning.current = running
-    if (wasRunning && !running) scheduleRefresh(true)
-  }, [useSession, running, scheduleRefresh])
-
   // 兜底信号：直接订阅会话事件流（宿主 sessions 服务的 eventSource），
-  // assistant/message 落盘即刷新 —— 不依赖插槽标准套件 hook。
+  // assistant/message 落盘即刷新 token 与预估费用 —— 不依赖插槽标准套件 hook。
   // 宿主服务尚未就绪时按 1s 间隔重试（最多 10 次），卸载时清理订阅与定时器。
   useEffect(() => {
     if (subscribeSessionEvents === undefined) return
@@ -250,7 +264,7 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
     let attempts = 0
     const attach = (): void => {
       try {
-        dispose = subscribeSessionEvents(sessionId, () => scheduleRefresh(true))
+        dispose = subscribeSessionEvents(sessionId, () => scheduleRefresh(false))
       } catch {
         dispose = null
       }
@@ -263,6 +277,17 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
       try { dispose?.() } catch { /* 退订失败忽略 */ }
     }
   }, [subscribeSessionEvents, sessionId, scheduleRefresh])
+
+  // 整轮结束信号：running 从 true 变为 false —— 重算 token 与预估费用，
+  // 并且只有这条路径带 gate（最近一次完成的请求走官方接口才广播
+  // bumpBalanceTick 强制刷新 footer 余额，即每轮最多一次余额接口请求）。
+  // 首次挂载只记录当前状态，不触发。
+  useEffect(() => {
+    if (useSession === undefined) return
+    const wasRunning = prevRunning.current
+    prevRunning.current = running
+    if (wasRunning && !running) scheduleRefresh(true)
+  }, [useSession, running, scheduleRefresh])
 
   // 卸载时清理合并窗口定时器。
   useEffect(() => () => {

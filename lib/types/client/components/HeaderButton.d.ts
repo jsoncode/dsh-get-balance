@@ -7,17 +7,18 @@
  * 会话可能中途切换 provider：按钮展示的是**合并统计结果**，**悬停**按钮
  * 弹出气泡弹框，逐 provider 列出当前会话统计（`ds-self 268K | ≈¥0.41`），
  * 鼠标移出按钮/气泡区域后自动收起。
- * 额外监听会话事件（三条冗余触发路径，任一命中即重算，350ms 窗口合并）：
+ * 额外监听会话事件（三条冗余触发路径，350ms 合并 + 1.5s 节流，一次只查一次
+ * cost op，且只更新 token 与预估费用）：
  * 1. useChat（插槽标准套件，主信号）：会话 chat 快照的已落盘节点里出现更高的
  *    assistant 消息 seq —— assistant/message 事件落盘即产生该节点，正是「一次
  *    响应结束」；
  * 2. sessions 服务的 eventSource（直连兜底）：窗口追加 assistant/message 事件
  *    时立即回调，不依赖插槽标准套件；
  * 3. useSession（插槽标准套件）：快照 running 从 true 变为 false —— 整轮结束
- *    （含子代理并入的用量）时补一次。
- * 余额刷新按请求走的接口区分：该请求走 DeepSeek 官方接口（api.deepseek.com，
- * cost op 的 lastRequestOfficial=true）才广播 bumpBalanceTick 让 footer 强制
- * 刷新余额；非官方接口只更新 token 与预估费用。
+ *    时补一次，且**只有这条路径**会带 gate：最近一次完成的请求走 DeepSeek 官方
+ *    接口（api.deepseek.com，cost op 的 lastRequestOfficial=true）才广播
+ *    bumpBalanceTick 让 footer 强制刷新余额 —— 即每轮最多一次余额接口请求。
+ *    前两条路径（每次响应结束）不碰余额接口，只更新 token 与预估费用。
  */
 import type { RunFn } from '../rpc.ts';
 /** 会话 chat 快照中已落盘的节点（仅取判定所需字段）。 */

@@ -165,6 +165,32 @@ const PRICE_PLATFORMS: Array<{ key: PricePlatform; labelKey: string }> = [
   { key: 'deepseek', labelKey: 'tabPlatformDeepseek' },
 ]
 
+/** 深拷贝价格档列表（弹框「取消」时回滚用）。 */
+function cloneTiers(list: readonly PriceView[]): PriceView[] {
+  return list.map((tier) => ({ ...tier, peak: { ...tier.peak }, offPeak: { ...tier.offPeak } }))
+}
+
+/** 校验价格档列表：返回错误文案（已翻译）；合法时返回 null。 */
+function validateTiers(list: readonly PriceView[]): string | null {
+  if (list.length === 0) return t('pricesEmpty')
+  const seen = new Set<string>()
+  for (const tier of list) {
+    const match = tier.match.trim()
+    if (match.length === 0) return t('modelMatchRequired')
+    if (seen.has(match)) return t('modelMatchDuplicate')
+    seen.add(match)
+  }
+  return null
+}
+
+/** 规范化价格档：匹配串去空格；名称为空时回退用匹配串（费用页不出现空名）。 */
+function normalizeTiers(list: readonly PriceView[]): PriceView[] {
+  return list.map((tier) => {
+    const match = tier.match.trim()
+    return { ...tier, match, name: tier.name.trim() || match }
+  })
+}
+
 /** 把 UTC 偏移小时数格式化为时区名（zh：零时区 / 东八区 / 西五区；en：UTC±0 / UTC+8 / UTC-5）。 */
 function formatTimezone(offsetHours: number): string {
   const h = Math.round(offsetHours)
@@ -204,6 +230,9 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
   const [prices, setPrices] = useState<PriceView[] | null>(null)
   const [windowCfg, setWindowCfg] = useState<PriceWindowView>({ timezoneOffsetMinutes: 480, peakWindows: [], weekendOffPeak: false })
   const [priceMsg, setPriceMsg] = useState('')
+  // 模型编辑弹框（唯一入口）：打开时快照当前列表，取消时回滚
+  const [modelDialogOpen, setModelDialogOpen] = useState(false)
+  const [modelBackup, setModelBackup] = useState<PriceView[] | null>(null)
 
   /** 余额查询：providers 与 balances 一并回填。 */
   const loadBalances = useCallback(async (refresh: boolean): Promise<void> => {
@@ -381,29 +410,43 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
     setPrices(prices.filter((_, i) => i !== index))
   }
 
+  /** 打开模型编辑弹框：先快照当前列表，弹框内直接改（取消则回滚）。 */
+  const openModelDialog = (): void => {
+    if (prices === null) return
+    setPriceMsg('')
+    setModelBackup(cloneTiers(prices))
+    setModelDialogOpen(true)
+  }
+
+  /** 取消模型编辑：回滚到打开弹框前的列表。 */
+  const cancelModelDialog = (): void => {
+    if (modelBackup !== null) setPrices(modelBackup)
+    setModelBackup(null)
+    setModelDialogOpen(false)
+    setPriceMsg('')
+  }
+
+  /** 确定模型编辑：校验后落到表格状态（仍需点底部「保存」持久化）。 */
+  const confirmModelDialog = (): void => {
+    if (prices === null) return
+    const error = validateTiers(prices)
+    if (error !== null) {
+      setPriceMsg(error)
+      return
+    }
+    setPrices(normalizeTiers(prices))
+    setModelBackup(null)
+    setModelDialogOpen(false)
+    setPriceMsg('')
+  }
+
   const savePrices = async (list: PriceView[], windowCfgNext?: PriceWindowView): Promise<void> => {
-    if (list.length === 0) {
-      setPriceMsg(t('pricesEmpty'))
+    const error = validateTiers(list)
+    if (error !== null) {
+      setPriceMsg(error)
       return
     }
-    // 匹配串必填且唯一（空串会被宿主规范化为 * 通配，语义完全不同）；名称为空时
-    // 回退用匹配串（费用页「模型 → 价格档」文案不会出现空名）。
-    const normalized = list.map((tier) => {
-      const match = tier.match.trim()
-      return { ...tier, match, name: tier.name.trim() || match }
-    })
-    if (normalized.some((tier) => tier.match.length === 0)) {
-      setPriceMsg(t('modelMatchRequired'))
-      return
-    }
-    const seen = new Set<string>()
-    for (const tier of normalized) {
-      if (seen.has(tier.match)) {
-        setPriceMsg(t('modelMatchDuplicate'))
-        return
-      }
-      seen.add(tier.match)
-    }
+    const normalized = normalizeTiers(list)
     const cfg = windowCfgNext ?? windowCfg
     const res = await run(getSession(), {
       op: 'pricesSave',
@@ -662,35 +705,15 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
                 <thead>
                   <tr>
                     <th className="dshb-price-corner" colSpan={2}>{t('priceModel')}</th>
-                    {prices.map((tier, i) => (
+                    {prices.map((tier) => (
                       <th key={tier.id} className="dshb-price-head-cell">
-                        {/* 模型编辑：名称（展示用）+ 匹配串（模型 id / *）+ 删除 */}
-                        <div className="dshb-price-head-edit">
-                          <input
-                            className="dshb-input dshb-price-name"
-                            value={tier.name}
-                            placeholder={t('priceName')}
-                            aria-label={t('priceName')}
-                            onChange={(e) => updatePrice(i, { name: e.target.value })}
-                          />
-                          <div className="dshb-price-head-row">
-                            <input
-                              className="dshb-input dshb-price-match"
-                              value={tier.match}
-                              placeholder={t('priceMatch')}
-                              aria-label={t('priceMatch')}
-                              title={tier.match === '*' ? t('fallbackHint') : t('modelMatchHint')}
-                              onChange={(e) => updatePrice(i, { match: e.target.value })}
-                            />
-                            <button
-                              type="button"
-                              className="dshb-btn dshb-btn-small dshb-btn-danger dshb-price-del"
-                              title={t('deleteModel')}
-                              aria-label={t('deleteModel')}
-                              onClick={() => removeTier(i)}
-                            >✕</button>
-                          </div>
-                        </div>
+                        {/* 只读展示：模型名 + （与匹配串不同时）小字匹配串；增删改走「编辑模型」弹框 */}
+                        <span className="dshb-price-model-name" title={tier.match === '*' ? t('fallbackHint') : tier.match}>
+                          {tier.name || tier.match}
+                        </span>
+                        {tier.name !== '' && tier.name !== tier.match
+                          ? <span className="dshb-price-model-match">{tier.match}</span>
+                          : null}
                       </th>
                     ))}
                   </tr>
@@ -729,8 +752,7 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
               </table>
             </div>
             <div className="dshb-price-actions">
-              <span className="dshb-hint">{t('modelMatchHint')}</span>
-              <button type="button" className="dshb-btn dshb-btn-small" onClick={addTier}>+ {t('addModel')}</button>
+              <button type="button" className="dshb-btn dshb-btn-small" onClick={openModelDialog}>{t('editModels')}</button>
             </div>
           </div>
         )}
@@ -866,6 +888,91 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
                   }}
                 >{t('timingStop')}</button>
                 <button type="button" className="dshb-btn dshb-btn-small" onClick={() => setTimingOpen(false)}>{t('close')}</button>
+              </div>
+            </div>
+          </div>
+        )
+        : null}
+      {/* 模型编辑弹框（唯一入口：表格下方「编辑模型」按钮打开）：增 / 删 / 改名称与匹配串与六项单价 */}
+      {modelDialogOpen
+        ? (
+          <div className="dshb-timing-backdrop" onClick={(e) => { if (e.target === e.currentTarget) cancelModelDialog() }}>
+            <div className="dshb-model-dialog" role="dialog" aria-modal="true" aria-label={t('modelDialogTitle')}>
+              <div className="dshb-timing-title">{t('modelDialogTitle')}</div>
+              <p className="dshb-hint">{t('modelDialogHint')}</p>
+              <div className="dshb-model-list">
+                {(prices ?? []).map((tier, i) => (
+                  <div className="dshb-model-row" key={tier.id}>
+                    <div className="dshb-model-row-head">
+                      <label className="dshb-model-field">
+                        <span>{t('priceName')}</span>
+                        <input
+                          className="dshb-input"
+                          value={tier.name}
+                          placeholder={t('priceName')}
+                          onChange={(e) => updatePrice(i, { name: e.target.value })}
+                        />
+                      </label>
+                      <label className="dshb-model-field">
+                        <span>{t('priceMatch')}</span>
+                        <input
+                          className="dshb-input"
+                          value={tier.match}
+                          placeholder={t('priceMatch')}
+                          title={tier.match === '*' ? t('fallbackHint') : t('modelMatchHint')}
+                          onChange={(e) => updatePrice(i, { match: e.target.value })}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="dshb-btn dshb-btn-small dshb-btn-danger dshb-model-del"
+                        title={t('deleteModel')}
+                        aria-label={t('deleteModel')}
+                        onClick={() => removeTier(i)}
+                      >{t('delete')}</button>
+                    </div>
+                    <div className="dshb-model-row-rates">
+                      <span className="dshb-model-period dshb-period-off">{t('pricePeriodOffPeak')}</span>
+                      {([['input', t('priceInput')], ['cacheRead', t('priceCacheRead')], ['output', t('rateOutput')]] as const).map(([field, label]) => (
+                        <label className="dshb-model-rate" key={'off-' + field}>
+                          <span>{label}</span>
+                          <input
+                            className="dshb-input dshb-num"
+                            type="number"
+                            step="any"
+                            min={0}
+                            value={tier.offPeak[field]}
+                            aria-label={label + ' · ' + t('pricePeriodOffPeak')}
+                            onChange={(e) => updateRate(i, 'offPeak', field, Number(e.target.value) || 0)}
+                          />
+                        </label>
+                      ))}
+                      <span className="dshb-model-period dshb-period-peak">{t('pricePeriodPeak')}</span>
+                      {([['input', t('priceInput')], ['cacheRead', t('priceCacheRead')], ['output', t('rateOutput')]] as const).map(([field, label]) => (
+                        <label className="dshb-model-rate" key={'peak-' + field}>
+                          <span>{label}</span>
+                          <input
+                            className="dshb-input dshb-num"
+                            type="number"
+                            step="any"
+                            min={0}
+                            value={tier.peak[field]}
+                            aria-label={label + ' · ' + t('pricePeriodPeak')}
+                            onChange={(e) => updateRate(i, 'peak', field, Number(e.target.value) || 0)}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {priceMsg !== ''
+                ? <p className="dshb-err">{priceMsg}</p>
+                : null}
+              <div className="dshb-model-actions">
+                <button type="button" className="dshb-btn dshb-btn-small dshb-model-add" onClick={addTier}>+ {t('addModel')}</button>
+                <button type="button" className="dshb-btn dshb-btn-small" onClick={cancelModelDialog}>{t('cancel')}</button>
+                <button type="button" className="dshb-btn dshb-btn-small dshb-btn-primary" onClick={confirmModelDialog}>{t('ok')}</button>
               </div>
             </div>
           </div>

@@ -900,71 +900,76 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
             <div className="dshb-model-dialog" role="dialog" aria-modal="true" aria-label={t('modelDialogTitle')}>
               <div className="dshb-timing-title">{t('modelDialogTitle')}</div>
               <p className="dshb-hint">{t('modelDialogHint')}</p>
-              <div className="dshb-model-list">
-                {(prices ?? []).map((tier, i) => (
-                  <div className="dshb-model-row" key={tier.id}>
-                    <div className="dshb-model-row-head">
-                      <label className="dshb-model-field">
-                        <span>{t('priceName')}</span>
-                        <input
-                          className="dshb-input"
-                          value={tier.name}
-                          placeholder={t('priceName')}
-                          onChange={(e) => updatePrice(i, { name: e.target.value })}
-                        />
-                      </label>
-                      <label className="dshb-model-field">
-                        <span>{t('priceMatch')}</span>
-                        <input
-                          className="dshb-input"
-                          value={tier.match}
-                          placeholder={t('priceMatch')}
-                          title={tier.match === '*' ? t('fallbackHint') : t('modelMatchHint')}
-                          onChange={(e) => updatePrice(i, { match: e.target.value })}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="dshb-btn dshb-btn-small dshb-btn-danger dshb-model-del"
-                        title={t('deleteModel')}
-                        aria-label={t('deleteModel')}
-                        onClick={() => removeTier(i)}
-                      >{t('delete')}</button>
-                    </div>
-                    <div className="dshb-model-row-rates">
-                      <span className="dshb-model-period dshb-period-off">{t('pricePeriodOffPeak')}</span>
-                      {([['input', t('priceInput')], ['cacheRead', t('priceCacheRead')], ['output', t('rateOutput')]] as const).map(([field, label]) => (
-                        <label className="dshb-model-rate" key={'off-' + field}>
-                          <span>{label}</span>
-                          <input
-                            className="dshb-input dshb-num"
-                            type="number"
-                            step="any"
-                            min={0}
-                            value={tier.offPeak[field]}
-                            aria-label={label + ' · ' + t('pricePeriodOffPeak')}
-                            onChange={(e) => updateRate(i, 'offPeak', field, Number(e.target.value) || 0)}
-                          />
-                        </label>
+              <div className="dshb-model-scroll">
+                <table className="dshb-table dshb-model-table">
+                  <thead>
+                    <tr>
+                      <th rowSpan={2} className="dshb-model-col-name">{t('priceName')}</th>
+                      <th rowSpan={2} className="dshb-model-col-match">{t('priceMatch')}</th>
+                      <th colSpan={3} className="dshb-period-off">{t('pricePeriodOffPeak')}</th>
+                      <th colSpan={3} className="dshb-period-peak dshb-model-sep">{t('pricePeriodPeak')}</th>
+                      <th rowSpan={2} className="dshb-model-col-ops">{t('priceOps')}</th>
+                    </tr>
+                    <tr>
+                      {(['offPeak', 'peak'] as const).map((period) => (
+                        (['input', 'cacheRead', 'output'] as const).map((field, k) => (
+                          <th key={period + field} className={period === 'peak' && k === 0 ? 'dshb-model-sep' : undefined}>
+                            {field === 'input' ? t('priceInput') : field === 'cacheRead' ? t('priceCacheRead') : t('rateOutput')}
+                          </th>
+                        ))
                       ))}
-                      <span className="dshb-model-period dshb-period-peak">{t('pricePeriodPeak')}</span>
-                      {([['input', t('priceInput')], ['cacheRead', t('priceCacheRead')], ['output', t('rateOutput')]] as const).map(([field, label]) => (
-                        <label className="dshb-model-rate" key={'peak-' + field}>
-                          <span>{label}</span>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(prices ?? []).map((tier, i) => (
+                      <tr key={tier.id}>
+                        <td>
                           <input
-                            className="dshb-input dshb-num"
-                            type="number"
-                            step="any"
-                            min={0}
-                            value={tier.peak[field]}
-                            aria-label={label + ' · ' + t('pricePeriodPeak')}
-                            onChange={(e) => updateRate(i, 'peak', field, Number(e.target.value) || 0)}
+                            className="dshb-input"
+                            value={tier.name}
+                            placeholder={t('priceName')}
+                            aria-label={t('priceName')}
+                            onChange={(e) => updatePrice(i, { name: e.target.value })}
                           />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                        </td>
+                        <td>
+                          <input
+                            className="dshb-input"
+                            value={tier.match}
+                            placeholder={t('priceMatch')}
+                            aria-label={t('priceMatch')}
+                            title={tier.match === '*' ? t('fallbackHint') : t('modelMatchHint')}
+                            onChange={(e) => updatePrice(i, { match: e.target.value })}
+                          />
+                        </td>
+                        {(['offPeak', 'peak'] as const).map((period) => (
+                          (['input', 'cacheRead', 'output'] as const).map((field, k) => (
+                            <td key={period + field} className={period === 'peak' && k === 0 ? 'dshb-model-sep' : undefined}>
+                              <input
+                                className="dshb-input dshb-num"
+                                type="number"
+                                step="any"
+                                min={0}
+                                value={tier[period][field]}
+                                aria-label={t(period === 'peak' ? 'pricePeriodPeak' : 'pricePeriodOffPeak') + ' · ' + (field === 'input' ? t('priceInput') : field === 'cacheRead' ? t('priceCacheRead') : t('rateOutput'))}
+                                onChange={(e) => updateRate(i, period, field, Number(e.target.value) || 0)}
+                              />
+                            </td>
+                          ))
+                        ))}
+                        <td className="dshb-model-ops">
+                          <button
+                            type="button"
+                            className="dshb-btn dshb-btn-small dshb-btn-danger"
+                            title={t('deleteModel')}
+                            aria-label={t('deleteModel')}
+                            onClick={() => removeTier(i)}
+                          >{t('delete')}</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
               {priceMsg !== ''
                 ? <p className="dshb-err">{priceMsg}</p>

@@ -39,6 +39,8 @@ export declare const DEFAULT_PEAK_WINDOWS: readonly TimeWindow[];
  * 内置默认价格档（DeepSeek 官方指导价，CNY / 每百万 tokens；2026 现行 V4 系列）。
  * 与官方价目表一致：仅三档模型，名称用官方模型版本号；无「兜底」档。
  * 高峰：北京时间 9:00–12:00、14:00–18:00；空闲 = 高峰 × 0.5。
+ * flash 系列（deepseek-v4-flash / deepseek-v4-flash-vision-exp）现行价：
+ * 空闲 输入未命中 1 / 缓存命中 0.02 / 输出 4，高峰为上述各项的 2 倍。
  */
 export declare const DEFAULT_PRICES: PriceTier[];
 /** 内置默认完整价格配置。 */
@@ -91,6 +93,7 @@ export declare function isOfficialProvider(provider: string | undefined, provide
  * - 新版对象 { tiers, timezoneOffsetMinutes?, peakWindows?, weekendOffPeak? }；
  * - 旧版扁平数组（迁移：单一时段单价 → 高峰/空闲同价，窗口用默认值）；
  * - 旧版内置默认档（deepseek-chat / deepseek-reasoner / 兜底）→ 直接升级为当前官方三档；
+ * - 未编辑过的旧默认档（flash 系列调价前）→ 逐档升级为当前默认价；
  * - 其它（缺失/非法）→ 默认配置。
  */
 export declare function normalizePriceConfig(raw: unknown): PriceConfig;

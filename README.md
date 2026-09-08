@@ -155,8 +155,8 @@ A balance & cost plugin for DeepSeek Harness:
       "tiers": [
         { "id": "deepseek-v4-flash", "name": "deepseek-v4-flash", "currency": "CNY",
           "match": "deepseek-v4-flash",
-          "peak": { "input": 3.0, "cacheRead": 0.10, "cacheWrite": 0, "output": 9.0 },
-          "offPeak": { "input": 1.5, "cacheRead": 0.05, "cacheWrite": 0, "output": 4.5 } }
+          "peak": { "input": 2.0, "cacheRead": 0.04, "cacheWrite": 0, "output": 8.0 },
+          "offPeak": { "input": 1.0, "cacheRead": 0.02, "cacheWrite": 0, "output": 4.0 } }
       ],
       "timezoneOffsetMinutes": 480,
       "peakWindows": [ { "start": "09:00", "end": "12:00" }, { "start": "14:00", "end": "18:00" } ],

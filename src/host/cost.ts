@@ -51,12 +51,14 @@ export const DEFAULT_PEAK_WINDOWS: readonly TimeWindow[] = [
  * 内置默认价格档（DeepSeek 官方指导价，CNY / 每百万 tokens；2026 现行 V4 系列）。
  * 与官方价目表一致：仅三档模型，名称用官方模型版本号；无「兜底」档。
  * 高峰：北京时间 9:00–12:00、14:00–18:00；空闲 = 高峰 × 0.5。
+ * flash 系列（deepseek-v4-flash / deepseek-v4-flash-vision-exp）现行价：
+ * 空闲 输入未命中 1 / 缓存命中 0.02 / 输出 4，高峰为上述各项的 2 倍。
  */
 export const DEFAULT_PRICES: PriceTier[] = [
   {
     id: 'deepseek-v4-flash', name: 'deepseek-v4-flash', currency: 'CNY', match: 'deepseek-v4-flash',
-    peak: { input: 3.0, cacheRead: 0.10, cacheWrite: 0, output: 9.0 },
-    offPeak: { input: 1.5, cacheRead: 0.05, cacheWrite: 0, output: 4.5 },
+    peak: { input: 2.0, cacheRead: 0.04, cacheWrite: 0, output: 8.0 },
+    offPeak: { input: 1.0, cacheRead: 0.02, cacheWrite: 0, output: 4.0 },
   },
   {
     id: 'deepseek-v4-pro', name: 'deepseek-v4-pro', currency: 'CNY', match: 'deepseek-v4-pro',
@@ -65,8 +67,8 @@ export const DEFAULT_PRICES: PriceTier[] = [
   },
   {
     id: 'deepseek-v4-flash-vision-exp', name: 'deepseek-v4-flash-vision-exp', currency: 'CNY', match: 'deepseek-v4-flash-vision-exp',
-    peak: { input: 3.0, cacheRead: 0.10, cacheWrite: 0, output: 9.0 },
-    offPeak: { input: 1.5, cacheRead: 0.05, cacheWrite: 0, output: 4.5 },
+    peak: { input: 2.0, cacheRead: 0.04, cacheWrite: 0, output: 8.0 },
+    offPeak: { input: 1.0, cacheRead: 0.02, cacheWrite: 0, output: 4.0 },
   },
 ]
 
@@ -245,10 +247,48 @@ function isLegacyDefaultTiers(tiers: readonly PriceTier[]): boolean {
 }
 
 /**
+ * flash 系列调价前的内置默认单价（按档 id）。用于识别「用户从未改过价格」的
+ * 旧配置：某档的两个时段与这里的旧默认值逐字段一致时，读取时自动升级为当前
+ * 默认价；自定义过的档、时段窗口、周六日半价等一律原样保留。
+ */
+const LEGACY_FLASH_DEFAULT_PRICES: Readonly<Record<string, { peak: PricePeriodPrices; offPeak: PricePeriodPrices }>> = {
+  'deepseek-v4-flash': {
+    peak: { input: 3.0, cacheRead: 0.10, cacheWrite: 0, output: 9.0 },
+    offPeak: { input: 1.5, cacheRead: 0.05, cacheWrite: 0, output: 4.5 },
+  },
+  'deepseek-v4-flash-vision-exp': {
+    peak: { input: 3.0, cacheRead: 0.10, cacheWrite: 0, output: 9.0 },
+    offPeak: { input: 1.5, cacheRead: 0.05, cacheWrite: 0, output: 4.5 },
+  },
+}
+
+/** 两个时段的四项单价是否完全一致。 */
+function samePeriodPrices(a: PricePeriodPrices, b: PricePeriodPrices): boolean {
+  return a.input === b.input && a.cacheRead === b.cacheRead
+    && a.cacheWrite === b.cacheWrite && a.output === b.output
+}
+
+/**
+ * 旧版内置默认价 → 当前默认价：仅当某档与调价前的内置默认值完全一致（即用户
+ * 从未编辑过该档）时替换为当前默认价，其余档原样返回。
+ */
+function upgradeLegacyDefaultTiers(tiers: readonly PriceTier[]): PriceTier[] {
+  return tiers.map((tier) => {
+    const legacy = LEGACY_FLASH_DEFAULT_PRICES[tier.id]
+    if (legacy === undefined) return tier
+    if (!samePeriodPrices(tier.peak, legacy.peak) || !samePeriodPrices(tier.offPeak, legacy.offPeak)) return tier
+    const current = DEFAULT_PRICES.find((t) => t.id === tier.id)
+    if (current === undefined) return tier
+    return { ...tier, peak: { ...current.peak }, offPeak: { ...current.offPeak } }
+  })
+}
+
+/**
  * 把任意存储值规范化为 PriceConfig：
  * - 新版对象 { tiers, timezoneOffsetMinutes?, peakWindows?, weekendOffPeak? }；
  * - 旧版扁平数组（迁移：单一时段单价 → 高峰/空闲同价，窗口用默认值）；
  * - 旧版内置默认档（deepseek-chat / deepseek-reasoner / 兜底）→ 直接升级为当前官方三档；
+ * - 未编辑过的旧默认档（flash 系列调价前）→ 逐档升级为当前默认价；
  * - 其它（缺失/非法）→ 默认配置。
  */
 export function normalizePriceConfig(raw: unknown): PriceConfig {
@@ -257,7 +297,7 @@ export function normalizePriceConfig(raw: unknown): PriceConfig {
     const tiers = raw.map((item, index) => normalizeTier(item, index))
     if (tiers.length === 0) return fallback()
     if (isLegacyDefaultTiers(tiers)) return fallback()
-    return { ...fallback(), tiers }
+    return { ...fallback(), tiers: upgradeLegacyDefaultTiers(tiers) }
   }
   if (raw !== null && typeof raw === 'object') {
     const obj = raw as Record<string, unknown>
@@ -278,7 +318,7 @@ export function normalizePriceConfig(raw: unknown): PriceConfig {
         .filter((w): w is TimeWindow => w !== undefined)
       : []
     return {
-      tiers,
+      tiers: upgradeLegacyDefaultTiers(tiers),
       timezoneOffsetMinutes: Math.round(offset),
       peakWindows: windows.length > 0 ? windows : DEFAULT_PEAK_WINDOWS.map((w) => ({ ...w })),
       weekendOffPeak: obj['weekendOffPeak'] === true,

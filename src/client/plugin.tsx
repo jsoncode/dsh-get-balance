@@ -56,6 +56,24 @@ interface FooterWorkspaceHooks {
   useSessions(selector: (s: { current?: string }) => unknown): unknown
 }
 
+/** 会话事件流观察源（宿主 sessions 服务 per-session eventSource 的最小视图）。 */
+interface SessionEventSourceFace {
+  subscribe(listener: () => void): () => void
+  getSnapshot(): { change?: { entries?: readonly { event?: { type?: string } }[] } } | undefined
+}
+
+/** 宿主 sessions 服务最小视图（软依赖：服务未就绪时逐次查找返回 undefined）。 */
+interface SessionsFace {
+  binding?(id: string): { eventSource?: SessionEventSourceFace } | undefined
+}
+
+/**
+ * 会话事件直连订阅（软依赖，HeaderButton 的兜底触发通道）：订阅该会话的
+ * eventSource，窗口每追加一个事件回调一次；只有 assistant/message 落盘才
+ * 通知调用方。返回退订函数；服务 / 会话绑定不可达时返回 null。
+ */
+type SubscribeSessionEvents = (sessionId: string, onAssistantMessage: () => void) => (() => void) | null
+
 export function createPlugin(): ClientPluginModule {
   return {
     name: 'dsh-get-balance',
@@ -160,6 +178,28 @@ export function createPlugin(): ClientPluginModule {
       const sessionRef: { current: string } = { current: '' }
       const getSession = (): string => sessionRef.current
 
+      // ─── 会话事件直连订阅（软依赖，header 按钮的兜底触发通道）─────────
+      // 宿主 sessions 服务为每个会话提供 eventSource（窗口每追加一个事件同步
+      // 发布一次）。这里只在 assistant/message 落盘时回调 —— 与插槽标准套件
+      // 的 useChat/useSession 互为冗余，任一可用即能感知「一次响应结束」。
+      // 服务可能晚于本插件就绪，故每次调用现取，不做缓存。
+      const subscribeSessionEvents: SubscribeSessionEvents = (sessionId, onAssistantMessage) => {
+        if (sessionId.length === 0) return null
+        const sessions = ctx.get<SessionsFace>('sessions')
+        const source = sessions?.binding?.(sessionId)?.eventSource
+        if (source === undefined) return null
+        return source.subscribe(() => {
+          const entries = source.getSnapshot()?.change?.entries
+          if (!Array.isArray(entries)) return
+          for (const entry of entries) {
+            if (entry?.event?.type === 'assistant/message') {
+              onAssistantMessage()
+              return
+            }
+          }
+        })
+      }
+
       // ─── 对话中的 dsh-balance 命令行：兜底不渲染内部 JSON 结果 ──────────
       // 浏览器半边的请求走 /dsh-balance/api HTTP 路由（rpc.ts），不进入对话
       // 命令通道。此 commandview 注册仅兜底「用户/模型在对话中显式执行
@@ -204,6 +244,8 @@ export function createPlugin(): ClientPluginModule {
             useTick={useTick}
             usePriceTick={usePriceTick}
             useSession={props.useSession as ((selector: (s: { running?: boolean }) => unknown) => unknown) | undefined}
+            useChat={props.useChat as ((selector: (s: { legacy?: { nodes?: readonly { kind?: string; seq?: number }[] } }) => unknown) => unknown) | undefined}
+            subscribeSessionEvents={subscribeSessionEvents}
             bumpBalanceTick={bumpBalanceTick}
           />
         ),

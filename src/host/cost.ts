@@ -49,14 +49,22 @@ export const DEFAULT_PEAK_WINDOWS: readonly TimeWindow[] = [
 
 /**
  * 内置默认价格档（DeepSeek 官方指导价，CNY / 每百万 tokens；2026 现行 V4 系列）。
- * 与官方价目表一致：仅三档模型，名称用官方模型版本号；无「兜底」档。
+ * 与官方价目表一致：名称用官方模型版本号；无「兜底」档。
  * 高峰：北京时间 9:00–12:00、14:00–18:00；空闲 = 高峰 × 0.5。
- * flash 系列（deepseek-v4-flash / deepseek-v4-flash-vision-exp）现行价：
- * 空闲 输入未命中 1 / 缓存命中 0.02 / 输出 4，高峰为上述各项的 2 倍。
+ * flash 系列（deepseek-v4-flash / deepseek-v4.1-flash-expires-on-0910 /
+ * deepseek-v4-flash-vision-exp）现行价：空闲 输入未命中 1 / 缓存命中 0.02 /
+ * 输出 4，高峰为上述各项的 2 倍。
+ * 注：deepseek-v4.1-flash-expires-on-0910 单列一档（否则按前缀规则匹配不到，
+ * 会回落到列表首档计费）；它按 flash 系列同价计费。
  */
 export const DEFAULT_PRICES: PriceTier[] = [
   {
     id: 'deepseek-v4-flash', name: 'deepseek-v4-flash', currency: 'CNY', match: 'deepseek-v4-flash',
+    peak: { input: 2.0, cacheRead: 0.04, cacheWrite: 0, output: 8.0 },
+    offPeak: { input: 1.0, cacheRead: 0.02, cacheWrite: 0, output: 4.0 },
+  },
+  {
+    id: 'deepseek-v4.1-flash-expires-on-0910', name: 'deepseek-v4.1-flash-expires-on-0910', currency: 'CNY', match: 'deepseek-v4.1-flash-expires-on-0910',
     peak: { input: 2.0, cacheRead: 0.04, cacheWrite: 0, output: 8.0 },
     offPeak: { input: 1.0, cacheRead: 0.02, cacheWrite: 0, output: 4.0 },
   },

@@ -19,6 +19,9 @@
  *    接口（api.deepseek.com，cost op 的 lastRequestOfficial=true）才广播
  *    bumpBalanceTick 让 footer 强制刷新余额 —— 即每轮最多一次余额接口请求。
  *    前两条路径（每次响应结束）不碰余额接口，只更新 token 与预估费用。
+ * 除上述事件信号外，以下时刻直接刷新一次：挂载、**切换会话 / 切换工作区后打开
+ * 另一个会话**（清空上一会话的显示值并重查，宿主未就绪时自动重试）、定时更新
+ * tick、价格保存 tick、点击按钮 / 悬停。
  */
 import type { RunFn } from '../rpc.ts';
 /** 会话 chat 快照中已落盘的节点（仅取判定所需字段）。 */

@@ -19,6 +19,9 @@
  *    接口（api.deepseek.com，cost op 的 lastRequestOfficial=true）才广播
  *    bumpBalanceTick 让 footer 强制刷新余额 —— 即每轮最多一次余额接口请求。
  *    前两条路径（每次响应结束）不碰余额接口，只更新 token 与预估费用。
+ * 除上述事件信号外，以下时刻直接刷新一次：挂载、**切换会话 / 切换工作区后打开
+ * 另一个会话**（清空上一会话的显示值并重查，宿主未就绪时自动重试）、定时更新
+ * tick、价格保存 tick、点击按钮 / 悬停。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -97,6 +100,13 @@ const REFRESH_COALESCE_MS = 350
  * 宿主；窗口内最后一次信号由尾随刷新兜底，最终值不会丢。
  */
 const REFRESH_MIN_INTERVAL_MS = 1500
+/**
+ * 会话切换后宿主的会话绑定 / 日志可能尚未就绪（cost 查询空返回或报错）：按此
+ * 间隔重试，直到拿到本次会话的统计值。
+ */
+const SWITCH_REFRESH_RETRY_MS = 400
+/** 会话切换后的最多重试次数（含首次共 4 次查询）。 */
+const SWITCH_REFRESH_RETRIES = 3
 
 export interface HeaderButtonProps {
   /** 当前会话 id（插槽标准 props）。 */
@@ -149,6 +159,10 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
   const running = useSession ? (useSession((s: { running?: boolean }) => s.running ?? false) as boolean) : false
   // 会话切换时重置观察状态（组件实例可能被复用）。
   const prevSessionId = useRef<string | null>(null)
+  // 当前会话 id 镜像：cost 响应回来时判定是否已被会话切换淘汰。
+  const sessionIdRef = useRef<string>(sessionId)
+  // 显示值所属的会话 id：与 sessionId 不同即发生切换（需要清空旧值并重查）。
+  const shownSessionIdRef = useRef<string | null>(null)
   // 上一次观察到的 assistant seq：null = 尚未观察（首次只记录，不触发）。
   const prevAssistantSeq = useRef<number | null>(null)
   // 上一次的 running 值：检测 true → false 转换。
@@ -158,19 +172,28 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
    * 刷新 token 与预估费用（cost op）。gateBalance=true 时（请求完成路径）：
    * 仅当最近一次完成的请求走 DeepSeek 官方接口（lastRequestOfficial=true）才
    * 广播 bumpBalanceTick —— 非官方接口的请求不触发余额查询。
+   * @param gateBalance - 是否允许本次查询触发余额刷新广播。
+   * @returns 是否已把本次会话的统计值写入显示状态（false = 空返回 / 失败 / 已被切换淘汰）。
    */
-  const refresh = useCallback(async (gateBalance = false) => {
+  const refresh = useCallback(async (gateBalance = false): Promise<boolean> => {
+    // 发起时的会话 id：响应回来时用它判定是否已被会话切换淘汰。
+    const target = sessionId
+    if (target.length === 0) return false
     try {
-      const costRes = await run(sessionId, { op: 'cost', sessionId })
+      const costRes = await run(target, { op: 'cost', sessionId: target })
+      // 会话已切换：丢弃上一会话的迟到响应，否则新会话会闪出旧数字。
+      if (sessionIdRef.current !== target) return false
       const cost = costRes.cost as ({ session?: SessionCostView } & { lastRequestOfficial?: boolean }) | undefined
       const session = cost?.session
-      if (session === undefined) return
+      if (session === undefined) return false
       if (session.amount !== undefined) setAmount(session.amount)
       if (session.buckets !== undefined) setTokens(totalTokensOf(session.buckets))
       if (Array.isArray(session.byKey)) setByKey(session.byKey)
       if (gateBalance && cost?.lastRequestOfficial === true) bumpBalanceTick?.()
+      return session.amount !== undefined || session.buckets !== undefined
     } catch {
-      // 保持上一次值。
+      // 保持上一次值（会话切换路径由调用方重试）。
+      return false
     }
   }, [run, sessionId, bumpBalanceTick])
 
@@ -199,11 +222,43 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
     void loadProviderLabels()
   }, [loadProviderLabels])
 
-  // 挂载 / 会话切换 / 自动刷新 tick / 价格保存 tick 变化时刷新；点击按钮手动刷新一次。
+  // ─── 挂载 / 会话切换 / 自动刷新 tick / 价格保存 tick → 刷新 ──────────
+  // 会话切换（含切换工作区后打开另一个会话）必须立即更新：先清空上一会话的
+  // 显示值，再查一次 cost op；宿主在切换瞬间可能尚未就绪（cost op 空返回或
+  // 报错），按 SWITCH_REFRESH_RETRY_MS 间隔重试 SWITCH_REFRESH_RETRIES 次兜底。
+  // 依赖里放的是会话 id / tick 这些原始值而非 refresh 回调，会话切换只走这一条
+  // 路径，不会与下方事件驱动调度重复查询。点击按钮仍走手动刷新一次。
   // 请求完成不在此列：由下方完成 effect 走合并窗口调度，避免重复 cost 查询。
   useEffect(() => {
-    void refresh()
-  }, [refresh, tick, priceTick])
+    sessionIdRef.current = sessionId
+    // 复用实例（未重新挂载）时也要清空旧值：显示值必须属于当前会话。
+    if (shownSessionIdRef.current !== sessionId) {
+      shownSessionIdRef.current = sessionId
+      setTokens(null)
+      setAmount(null)
+      setByKey(null)
+    }
+    let cancelled = false
+    let timer: number | null = null
+    let attempts = 0
+    const kick = (): void => {
+      void refresh().then((applied) => {
+        // 已切换走了：不再为上一个会话补查（显示值已被下一次 effect 清空）。
+        if (cancelled || sessionIdRef.current !== sessionId) return
+        if (applied || attempts >= SWITCH_REFRESH_RETRIES) return
+        attempts += 1
+        timer = window.setTimeout(kick, SWITCH_REFRESH_RETRY_MS)
+      })
+    }
+    kick()
+    return () => {
+      cancelled = true
+      if (timer !== null) window.clearTimeout(timer)
+    }
+    // refresh 仅在 run / sessionId / bumpBalanceTick 变化时重建，其中只有
+    // sessionId 会随本次 effect 一起变化（run 与 bumpBalanceTick 是插件级稳定值）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, tick, priceTick])
 
   // ─── 完成信号 → 合并 + 节流调度 ──────────────────────────────────
   // 一次响应结束会同时命中多个信号（assistant 节点落盘、事件流追加），
@@ -245,12 +300,15 @@ export function HeaderButton({ sessionId, run, useTick, usePriceTick, useSession
   }, [sessionId])
 
   // 主信号：assistant 消息节点落盘（最大 seq 变大）→ 一次 AI 响应结束。
-  // 只更新 token 与预估费用（不查余额接口）。首次观察只记录存量，不触发。
+  // 只更新 token 与预估费用（不查余额接口）。首次观察只记录存量，不触发；
+  // 观察到 0 时同样只记录 —— 会话切换后 chat 快照先空后有，加载完成会把最大
+  // seq 从 0 抬到存量值，那是一次「载入」而非一次「完成」（切换时已由上方
+  // 会话切换 effect 查过一次），否则每次切换都要多打一次 cost op。
   useEffect(() => {
     if (useChat === undefined) return
     const previous = prevAssistantSeq.current
     prevAssistantSeq.current = assistantSeq
-    if (previous === null || assistantSeq <= previous) return
+    if (previous === null || previous === 0 || assistantSeq <= previous) return
     scheduleRefresh(false)
   }, [useChat, assistantSeq, scheduleRefresh])
 

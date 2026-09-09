@@ -22,6 +22,7 @@ DeepSeek Harness（dsh）余额与费用查询插件：
 | 侧边栏入口 | footer.action | 「余额」按钮：余额靠右对齐（货币符号前缀、数字绿色、数字变化为**上下轮播**动画），**多账号以 `\|` 分隔逐段显示**（每段对应一个服务商/账号），**取不到余额的账号显示红色 `--`**（悬停提示原因）；时段收敛为小圆点（高峰红 / 空闲绿），悬停气泡提示完整信息「当前为高峰时段 全价计费」/「当前为空闲时段 半价计费」（价词着色：全价红 / 半价绿） |
 | 定时更新 | 弹框右上「定时更新」 | 按设定秒数自动刷新余额与费用；配置弹框（启动/停止互斥、输入框禁用）；间隔持久化 |
 | 附加 API Key | 弹框 · 余额 Tab 底部 | 手动添加不在 providers 配置中的 key，脱敏回显，持久化到 `$DSH_HOME/dsh-get-balance.json` |
+| 入口显隐 | 宿主设置 · 余额分区页 / 弹框 · 价格 Tab 顶部 | 「**在菜单中显示**」滑动开关（默认开启，`localStorage` key `dsh-get-balance.show-in-menu`）：关闭后侧边栏入口按钮渲染为 null（不占位、不再轮询余额）；两处开关同一偏好源，改一处另一处即时同步；入口关闭后仍可从宿主「设置 → 余额」分区页打开插件弹框 |
 
 ## 计费与判定口径
 
@@ -53,7 +54,9 @@ DeepSeek Harness（dsh）余额与费用查询插件：
 ├── src/client/*        # 浏览器半边：plugin.tsx（slots 注册 + 定时器）、
 │                       #   BalanceModal.tsx（三 tab 弹框）、HeaderButton.tsx
 │                       #   （会话头部按钮）、FooterButton.tsx（footer 入口）、
-│                       #   rpc.ts、store.ts、i18n.ts、styles.ts、logo.ts
+│                       #   PluginSettingsPage.tsx（宿主设置分区页）、
+│                       #   prefs.ts（本地偏好）、rpc.ts、store.ts、
+│                       #   i18n.ts、styles.ts、logo.ts
 ├── lib/index.js        # 宿主半边产物（tsdown，ESM），提交 git 以支持 git 安装
 ├── lib/client.js       # 浏览器半边产物（__ModuleLoader__ 工厂），提交 git
 ├── lib/types/          # 类型声明（tsc -b 生成）
@@ -181,5 +184,11 @@ dsh plugin --profile web add ./
   dsh-commands、dsh-session、dsh-api-remotes、client runtime / ui-slots /
   ui-settings / cordis-client-runner、`react`）由宿主在安装时解析。
 - **不修改**官方 `deepseek-harness` 项目；全部功能使用既有插槽
-  （`sidebar.footer.action`、`shell.overlay`、`conversation.session.header.utilities`）
-  与 HTTP / 命令通道。
+  （`sidebar.footer.action`、`settings.section`、`shell.overlay`、
+  `conversation.session.header.utilities`）与 HTTP / 命令通道。
+- **样式隔离**：注入的样式表除一条刻意保留的例外，全部限定在 `.dshb-*` 作用域内 ——
+  `:where(div:has(> [data-slot="sidebar.footer.action"] > .dshb-footer-group)){flex-direction:column}`
+  用于把宿主 footer 容器从默认 flex 横排改为纵向堆叠（否则多个插件入口会被挤在一行）。
+  它只可能命中「容器内已存在本插件入口」的那一层，且外层 `:where()` 把优先级压到 0，
+  宿主随时可覆盖。动画名统一 `dshb-` 前缀，style 标签带 `data-plugin-css="dsh-get-balance/settings.css"`
+  标记；没有其它全局选择器，不写 `:root`/`body`/`*`，也不修改 body 行内样式。

@@ -3,6 +3,12 @@
  * 常驻的「余额」按钮（footer.action 区），点击打开统一弹框
  * （余额 / 费用 / 价格设置 三个 tab）。
  *
+ * 显隐跟随「在菜单中显示」偏好（prefs.ts 的 showInMenuStore，默认开启）：
+ * 关闭后本组件渲染 null（不占位、不发起余额轮询）。偏好源与宿主
+ * 「设置 → 账户余额 · Token 调用量」分区页、插件弹框「价格设置」tab 顶部的
+ * 开关同一个，改一处即刻生效，无需刷新页面。会话 id 上报与显隐无关（费用 /
+ * 余额查询都依赖它），不随 visible 门控。
+ *
  * 右侧文案横排显示：「余额 ￥110.00 | ￥99.50 · 时段小圆点」——余额靠右对齐
  * （货币符号前缀、数字绿色），**每个服务商（账号）一段**，以 | 分隔；
  * 取不到余额的账号（未配置 key / 查询失败）以**红色 --** 占位（悬停显示原因）。
@@ -48,5 +54,5 @@ export interface FooterButtonProps {
     /** 点击更新热区（胶囊父盒子）：打开「确认更新」弹框。 */
     onUpdateClick?(): void;
 }
-export declare function FooterButton({ onOpen, reportSession, wide, useSessions, run, useOpen, usePriceTick, useBalanceTick, useShowBalance, useUpdate, onUpdateClick }: FooterButtonProps): import("react").JSX.Element;
+export declare function FooterButton({ onOpen, reportSession, wide, useSessions, run, useOpen, usePriceTick, useBalanceTick, useShowBalance, useUpdate, onUpdateClick }: FooterButtonProps): import("react").JSX.Element | null;
 //# sourceMappingURL=FooterButton.d.ts.map

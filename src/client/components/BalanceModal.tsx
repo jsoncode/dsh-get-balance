@@ -6,7 +6,8 @@
  *    每行独立状态；底部「附加 API Key」管理不在 providers 配置中的 key；
  * 2. 费用：筛选器（API Key / 平台 / 模型 / 时间）+ 五张 ECharts 堆叠柱状图
  *    （费用 / Token 总量 / 工作区 / 缓存比例 / 工具占比），见 CostTab.tsx；
- * 3. 价格设置：二级平台 tab（当前仅 DeepSeek）—— 时段配置 + 价格档行内编辑 + 增删，
+ * 3. 价格设置：二级平台 tab（当前仅 DeepSeek）—— 顶部「在菜单中显示」开关（与宿主
+ *    「设置」分区页同一偏好源）+ 时段配置 + 价格档行内编辑 + 增删，
  *    后续新增其他平台定价时在 PRICE_PLATFORMS 加一项即可。
  */
 
@@ -14,6 +15,7 @@ import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'reac
 import type { RunFn } from '../rpc.ts'
 import { fmtAmount, t, tErr, zhNumeral } from '../i18n.ts'
 import { CostTab } from './CostTab.tsx'
+import { ShowInMenuToggle } from './ShowInMenuToggle.tsx'
 
 /* ── 宿主载荷的最小读取形状 ───────────────────────────────── */
 
@@ -768,6 +770,9 @@ export function BalanceModal({ run, useOpen, close, getSession, useTick, useAuto
     const platformViews: Record<PricePlatform, () => ReactNode> = { deepseek: renderDeepseekPrices }
     return (
       <div>
+        {/* 「在菜单中显示」开关：位于本 tab 内容最顶部，与宿主「设置 → 账户余额 ·
+            Token 调用量」分区页渲染同一组件、同一偏好源（改一处两处即时同步）。 */}
+        <ShowInMenuToggle />
         <div className="dshb-subtabs" role="tablist" aria-label={t('tabPrices')}>
           {PRICE_PLATFORMS.map((p) => (
             <button

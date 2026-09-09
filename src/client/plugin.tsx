@@ -7,8 +7,11 @@
  *
  * 入口结构（统一弹框）：
  * - sidebar.footer.action：常驻「余额」按钮（固定 order: 30，排在插槽
- *   靠前位置），点击打开统一弹框；检测到新版本时最右侧显示「更新」胶囊，
- *   点击胶囊 → 确认弹框 → 日志大弹框（dsh plugin --profile web update 执行日志）；
+ *   靠前位置），点击打开统一弹框；显隐跟随「在菜单中显示」偏好（默认开启），
+ *   检测到新版本时最右侧显示「更新」胶囊，点击胶囊 → 确认弹框 → 日志大弹框
+ *   （dsh plugin --profile web update 执行日志）；
+ * - settings.section（dsh-get-balance）：宿主「设置 → 账户余额 · Token 调用量」
+ *   分区页 —— 「在菜单中显示」开关 + 打开插件弹框的入口（footer 入口关闭后的唯一入口）；
  * - shell.overlay（dsh-balance-modal）：统一弹框，三个 tab —— 余额 / 费用 /
  *   价格设置，所有余额相关的显示与设置都收敛在此；
  * - shell.overlay（dsh-balance-update）：更新确认弹框 / 更新日志大弹框。
@@ -16,11 +19,12 @@
 
 import { injectStyles } from './styles.ts'
 import { makeRun, type RunFn } from './rpc.ts'
-import { setLang } from './i18n.ts'
+import { setLang, t } from './i18n.ts'
 import { makeBalanceModalStore, type UpdateInfo } from './store.ts'
 import { FooterButton } from './components/FooterButton.tsx'
 import { HeaderButton } from './components/HeaderButton.tsx'
 import { BalanceModal } from './components/BalanceModal.tsx'
+import { PluginSettingsPage } from './components/PluginSettingsPage.tsx'
 import { UpdateDialogs } from './components/UpdateDialogs.tsx'
 
 /** 宿主 slots 服务最小视图。 */
@@ -32,6 +36,9 @@ interface SlotsService {
 /** 侧边栏 footer 插槽 key 与本插件入口 id。 */
 const FOOTER_SLOT = 'sidebar.footer.action'
 const FOOTER_ENTRY_ID = 'dsh-get-balance'
+
+/** 宿主设置对话框里本插件分区页的注册 id（settings.section 的 only 过滤键）。 */
+const SECTION_ID = 'dsh-get-balance'
 
 /** 浏览器侧插件上下文（宿主注入）。 */
 export interface ClientCtx {
@@ -230,6 +237,26 @@ export function createPlugin(): ClientPluginModule {
             useShowBalance={useShowBalance}
             useUpdate={useUpdate}
             onUpdateClick={openUpdateConfirm}
+          />
+        ),
+      ))
+
+      // ─── 宿主「设置 → 账户余额 · Token 调用量」分区页（settings.section）──
+      // 页面承载「在菜单中显示」开关（与 footer 入口同一偏好源）+ 打开插件
+      // 弹框的入口：侧栏入口被关闭后，这里是唯一可达入口。order 42 排在宿主
+      // 内置 sections 与 dsh-model-list（order 40）、dsh-jenkins（order 41）之后；
+      // label 用入口按钮同名文案（balanceBtn「余额」/「Balance」，thunk 跟随语言）。
+      slots.inject('settings.section', () => slots.register(
+        {
+          name: 'settings.section',
+          id: SECTION_ID,
+          order: 42,
+          label: () => t('balanceBtn'),
+        },
+        (props: Record<string, unknown>) => (
+          <PluginSettingsPage
+            onOpen={() => modalStore.open(true)}
+            close={typeof props.close === 'function' ? (props.close as () => void) : () => { /* 宿主未提供 close 时忽略 */ }}
           />
         ),
       ))

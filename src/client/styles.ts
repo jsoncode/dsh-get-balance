@@ -76,8 +76,12 @@ export const css = [
   '.dshb-roll-col-static .dshb-roll-strip{transition:none}',
   '.dshb-roll-cell{display:block;height:1em;line-height:1em;text-align:center}',
   '.dshb-roll-char{display:inline-block;height:1em;line-height:1em;vertical-align:top}',
-  // 宿主 sidebar.footer.action 列表容器：改为纵向堆叠，多个按钮各占一行、按 order 升序
-  'div:has(> [data-slot="sidebar.footer.action"]){flex-direction:column}',
+  // 宿主 sidebar.footer.action 列表容器：宿主默认 flex 行布局会把多个插件注册的
+  // 入口挤在一行（本插件按钮宽度 100%，会横向溢出），因此改为纵向堆叠。
+  // 作用域：以**本插件自己的** .dshb-footer-group 为锚点 —— 宿主容器里没有本
+  // 插件入口时不可能命中，不会影响宿主任何其它 DOM；外层 :where() 把优先级压到
+  // 0，宿主随时可以覆盖。这是本插件唯一一条不带 dshb- 前缀的声明。
+  ':where(div:has(> [data-slot="sidebar.footer.action"] > .dshb-footer-group)){flex-direction:column}',
   // 弹框
   // 弹框蒙版：半透明黑 + 高斯模糊（与 dsh-jenkins 的 dshj-backdrop 一致，
   // Safari 前缀 -webkit-backdrop-filter；不支持时优雅降级为纯半透明遮罩）
@@ -161,6 +165,17 @@ export const css = [
   '.dshb-switch-on:hover{background:#117f39}',
   '.dshb-switch-thumb{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06),0 1px 4px rgba(0,0,0,.35);transition:left .2s cubic-bezier(.25,.8,.35,1)}',
   '.dshb-switch-on .dshb-switch-thumb{left:20px}',
+  // 「在菜单中显示」滑动开关行（宿主设置分区页顶部 + 弹框「价格设置」tab 顶部
+  // 渲染同一组件；开关本体复用上方 .dshb-switch / .dshb-switch-thumb / -on）
+  '.dshb-settings{display:flex;flex-direction:column;gap:12px}',
+  '.dshb-pref{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--dsw-alias-border-l2,#ddd);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-bg-base,#fff) 60%,transparent);margin-bottom:12px}',
+  // 分区页内由 .dshb-settings 的 gap 负责间距，开关行自身不再叠一层下边距
+  '.dshb-settings .dshb-pref{margin-bottom:0}',
+  '.dshb-pref-text{min-width:0;display:flex;flex-direction:column;gap:2px}',
+  '.dshb-pref-label{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary,#222)}',
+  '.dshb-pref-desc{font-size:12px;color:var(--dsw-alias-label-secondary,#888)}',
+  // 宿主设置分区页里的「打开插件」按钮行
+  '.dshb-pref-open{display:flex;gap:8px}',
   // 余额 tab：服务商卡片行
   '.dshb-prov-list{display:flex;flex-direction:column;gap:8px}',
   '.dshb-prov{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--dsw-alias-border-l1,#eee);border-radius:10px;background:var(--dsw-alias-bg-layer-2,#fafafa)}',

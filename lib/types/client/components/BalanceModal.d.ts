@@ -6,7 +6,8 @@
  *    每行独立状态；底部「附加 API Key」管理不在 providers 配置中的 key；
  * 2. 费用：筛选器（API Key / 平台 / 模型 / 时间）+ 五张 ECharts 堆叠柱状图
  *    （费用 / Token 总量 / 工作区 / 缓存比例 / 工具占比），见 CostTab.tsx；
- * 3. 价格设置：二级平台 tab（当前仅 DeepSeek）—— 时段配置 + 价格档行内编辑 + 增删，
+ * 3. 价格设置：二级平台 tab（当前仅 DeepSeek）—— 顶部「在菜单中显示」开关（与宿主
+ *    「设置」分区页同一偏好源）+ 时段配置 + 价格档行内编辑 + 增删，
  *    后续新增其他平台定价时在 PRICE_PLATFORMS 加一项即可。
  */
 import type { RunFn } from '../rpc.ts';

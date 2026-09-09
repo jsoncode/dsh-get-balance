@@ -121,6 +121,13 @@ A balance & cost plugin for DeepSeek Harness:
   "Currently peak hours · full price billing" / "Currently off-peak hours · half
   price billing" (full price in red / half price in green); the amounts come from
   the balance API.
+- **Show in menu** preference (default **on**, `localStorage` key
+  `dsh-get-balance.show-in-menu`): when off, the entry button renders nothing at
+  all (no placeholder, and no balance polling behind it). The same switch sits at
+  the top of the modal's **Prices** tab and at the top of the host
+  **Settings → Balance** section page (`settings.section`, order 42,
+  which stays reachable and is then the only way back in; both switches share one
+  store, so flipping either updates the other immediately.
 
 ### Auto refresh
 
@@ -282,5 +289,13 @@ dsh plugin --profile web add ./
   dsh-commands, dsh-session, dsh-api-remotes, client runtime / ui-slots /
   ui-settings / cordis-client-runner, `react`) are resolved by the host at install.
 - The official `deepseek-harness` project is **never modified**; everything uses
-  existing slots (`sidebar.footer.action`, `shell.overlay`,
+  existing slots (`sidebar.footer.action`, `settings.section`, `shell.overlay`,
   `conversation.session.header.utilities`) and the HTTP / command channel.
+- **Style isolation**: every rule in the injected stylesheet is scoped to `.dshb-*`
+  with one deliberate exception — `:where(div:has(> [data-slot="sidebar.footer.action"] > .dshb-footer-group)){flex-direction:column}`,
+  which stacks the host footer container (the host lays it out as a flex **row**, so
+  several plugin entries would squeeze onto one line). It can only match a container
+  that already holds **this plugin's own entry**, and `:where()` drops its specificity
+  to 0 so the host can always override it. Keyframe names are `dshb-`-prefixed and the
+  style tag is marked `data-plugin-css="dsh-get-balance/settings.css"`; no other global
+  selector, no `:root`/`body`/`*` rule, no body-style mutation.

@@ -7,8 +7,11 @@
  *
  * 入口结构（统一弹框）：
  * - sidebar.footer.action：常驻「余额」按钮（固定 order: 30，排在插槽
- *   靠前位置），点击打开统一弹框；检测到新版本时最右侧显示「更新」胶囊，
- *   点击胶囊 → 确认弹框 → 日志大弹框（dsh plugin --profile web update 执行日志）；
+ *   靠前位置），点击打开统一弹框；显隐跟随「在菜单中显示」偏好（默认开启），
+ *   检测到新版本时最右侧显示「更新」胶囊，点击胶囊 → 确认弹框 → 日志大弹框
+ *   （dsh plugin --profile web update 执行日志）；
+ * - settings.section（dsh-get-balance）：宿主「设置 → 账户余额 · Token 调用量」
+ *   分区页 —— 「在菜单中显示」开关 + 打开插件弹框的入口（footer 入口关闭后的唯一入口）；
  * - shell.overlay（dsh-balance-modal）：统一弹框，三个 tab —— 余额 / 费用 /
  *   价格设置，所有余额相关的显示与设置都收敛在此；
  * - shell.overlay（dsh-balance-update）：更新确认弹框 / 更新日志大弹框。

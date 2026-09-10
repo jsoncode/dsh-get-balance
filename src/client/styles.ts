@@ -87,7 +87,8 @@ export const css = [
   // Safari 前缀 -webkit-backdrop-filter；不支持时优雅降级为纯半透明遮罩）
   '.dshb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:auto;-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2)}',
   // 弹框本体：玻璃拟态（半透明底色 + 自身 blur），与 dshj-modal 一致
-  '.dshb-modal{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 78%,transparent);border:1px solid var(--dsw-alias-border-l2,#ddd);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.28);width:min(760px,100%);display:flex;flex-direction:column;overflow:hidden;color:var(--dsw-alias-label-primary,#222);font-size:14px;-webkit-backdrop-filter:blur(24px) saturate(1.5);backdrop-filter:blur(24px) saturate(1.5)}',
+  // （加宽到 1100px：费用 tab 图表 + 双行图例需要更宽的绘图区）
+  '.dshb-modal{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 78%,transparent);border:1px solid var(--dsw-alias-border-l2,#ddd);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.28);width:min(1100px,100%);display:flex;flex-direction:column;overflow:hidden;color:var(--dsw-alias-label-primary,#222);font-size:14px;-webkit-backdrop-filter:blur(24px) saturate(1.5);backdrop-filter:blur(24px) saturate(1.5)}',
   // 主弹框（余额 / 费用 / 价格设置）：高度固定 90vh；更新确认/日志弹框不命中此规则，保持内容自适应
   '.dshb-modal:not(.dshb-modal-sm):not(.dshb-modal-log){height:90vh}',
   // 更新确认/日志弹框：层级高于余额弹框（z 1150），互斥打开互不干扰
@@ -244,8 +245,8 @@ export const css = [
   '.dshb-charts-loading{opacity:.5;pointer-events:none;transition:opacity .15s}',
   '.dshb-chart{min-width:0;border:1px solid var(--dsw-alias-border-l1,#eee);border-radius:10px;padding:10px 12px;background:var(--dsw-alias-bg-layer-2,#fafafa)}',
   '.dshb-chart-title{font-size:13px;font-weight:600;margin:0 0 6px;color:var(--dsw-alias-label-primary,#222)}',
-  '.dshb-chart-box{height:220px;min-width:0}',
-  // 首次加载骨架占位：与真实图表卡片同构同高（标题行 + 220px 图区），数据到达前布局不跳动
+  '.dshb-chart-box{height:300px;min-width:0}',
+  // 首次加载骨架占位：与真实图表卡片同构同高（标题行 + 300px 图区），数据到达前布局不跳动
   '.dshb-charts-placeholder{pointer-events:none}',
   '.dshb-chart-skeleton{display:flex;flex-direction:column}',
   '.dshb-skeleton-line{height:14px;border-radius:4px;background:rgba(128,128,128,.15);margin:0 0 8px}',

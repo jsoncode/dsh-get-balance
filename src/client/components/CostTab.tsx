@@ -1,16 +1,16 @@
 /**
- * dsh-get-balance —— 费用 tab（图表版）：筛选行 + 数据加载 + 五张图布局。
+ * dsh-get-balance —— 费用 tab（图表版）：筛选行 + 数据加载 + 四张图布局。
  *
  * 数据链路：宿主 `costSeries` op 返回固定桶轴（points）+ 每桶记录
  * （provider×model×workspace 聚合）。API Key / 平台 / 模型筛选为纯前端过滤
  * （本地聚合，不回宿主）；时间切换（range）重新请求。
  *
- * 五张图（全部堆叠柱状图，x = 时间桶）：
- * 1. 费用：每个已配置定价的 (平台·模型) 一条金额（y 轴单位为元）；未配置定价的不计费、不显示。
- * 2. Token 总量：每个 (平台·模型) 一条（四桶合计）。
- * 3. 工作区：每个工作区（cwd）一条。
- * 4. 缓存比例：缓存命中 / 未命中 两条（tooltip 附命中缓存率）。
- * 5. 工具占比：工具调用 / 文本回复 / 纯推理 三条。
+ * 四张图（x = 时间桶）：
+ * 1. 费用 + Token 组合图：柱 = 各已计费 (平台·模型) 的金额（左轴，元）；
+ *    线 = 各 (平台·模型) 的 token 用量（右轴，含未计费模型）。
+ * 2. 工作区：每个工作区（cwd）一条。
+ * 3. 缓存比例：缓存命中 / 未命中 两条（tooltip 附命中缓存率）。
+ * 4. 工具占比：工具调用 / 文本回复 / 纯推理 三条。
  *
  * 加载体验：未加载完成前用骨架占位固定图表区高度；切换时间范围时旧数据半透明
  * 示「刷新中」，并发请求只采纳最后一次（避免慢请求后到覆盖新范围的数据）。
@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RunFn } from '../rpc.ts'
 import { currencySymbol, t, tErr } from '../i18n.ts'
-import { ChartCard, cacheTooltip, costTooltip, stackedBarOption, type ChartSeriesDef } from './CostCharts.tsx'
+import { ChartCard, cacheTooltip, costTokensComboOption, stackedBarOption, type ChartSeriesDef, type ComboSeriesDef } from './CostCharts.tsx'
 import { ModalPortal } from './ModalPortal.tsx'
 
 /* ── 宿主载荷的最小读取形状（与 host/types.ts 的 SeriesRecord/CostSeriesResult 对齐） ── */
@@ -101,8 +101,8 @@ const RANGES: Array<{ key: string; labelKey: string }> = [
   { key: 'month1', labelKey: 'rangeMonth1' },
 ]
 
-/** 首次加载骨架占位卡片（与五张图一一对应，固定图表区高度）。 */
-const SKELETON_CARDS = [0, 1, 2, 3, 4]
+/** 首次加载骨架占位卡片（与四张图一一对应，固定图表区高度）。 */
+const SKELETON_CARDS = [0, 1, 2, 3]
 
 /** 四桶 token 总数。 */
 function tokensOf(b: BucketsView): number {
@@ -382,41 +382,30 @@ export function CostTab({ run, getSession, tick, reloadTick, metaOf, active }: C
   const perBucket = (metric: (r: SeriesRecordView) => number): number[] =>
     filtered.map((bucket) => bucket.reduce((s, r) => s + metric(r), 0))
 
-  /** 图 1：费用 —— 每 (平台·模型) 一条金额；仅展示已计费记录（未配置定价的不计费，不在此图中显示）。 */
+  /** 图 1：费用 + Token 组合图 —— 柱 = 各已计费模型金额（左轴）；线 = 各模型 token 用量（右轴，含未计费）。 */
   const costOption = useMemo(() => {
-    const sums = new Map<string, number>()
+    // 统一模型清单（平台·模型），柱与线共用同一配色（按 token 总量降序）。
+    const sums = new Map<string, { amount: number; tokens: number }>()
     for (const bucket of filtered) {
       for (const r of bucket) {
-        if (!r.priced) continue
         const key = r.platform + '·' + r.model
-        sums.set(key, (sums.get(key) ?? 0) + r.amount)
+        const agg = sums.get(key) ?? { amount: 0, tokens: 0 }
+        agg.amount += r.priced ? r.amount : 0
+        agg.tokens += tokensOf(r.buckets)
+        sums.set(key, agg)
       }
     }
-    const series: ChartSeriesDef[] = [...sums.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => ({
+    const models = [...sums.entries()].sort((a, b) => b[1].tokens - a[1].tokens).map(([name]) => name)
+    const series: ComboSeriesDef[] = models.map((name) => ({
       name,
-      data: filtered.map((bucket) => bucket.reduce((x, r) => x + (r.priced && r.platform + '·' + r.model === name ? r.amount : 0), 0)),
+      amounts: filtered.map((bucket) => bucket.reduce((x, r) => x + (r.priced && r.platform + '·' + r.model === name ? r.amount : 0), 0)),
+      tokens: filtered.map((bucket) => bucket.reduce((x, r) => x + (r.platform + '·' + r.model === name ? tokensOf(r.buckets) : 0), 0)),
     }))
-    // y 轴单位为「元」（取货币符号，CNY → ¥）。
-    return stackedBarOption(labels, series, t('yAmount', { cur: currencySymbol(currency) }), (params) => costTooltip(params, currency))
+    // 左轴单位为「元」（取货币符号，CNY → ¥），右轴为 token 数量。
+    return costTokensComboOption(labels, series, t('yAmount', { cur: currencySymbol(currency) }), t('yTokens'), currency)
   }, [filtered, labels, currency])
 
-  /** 图 2：Token 总量 —— 每 (平台·模型) 一条（四桶合计）。 */
-  const tokensOption = useMemo(() => {
-    const sums = new Map<string, number>()
-    for (const bucket of filtered) {
-      for (const r of bucket) {
-        const key = r.platform + '·' + r.model
-        sums.set(key, (sums.get(key) ?? 0) + tokensOf(r.buckets))
-      }
-    }
-    const series: ChartSeriesDef[] = [...sums.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => ({
-      name,
-      data: filtered.map((bucket) => bucket.reduce((x, r) => x + (r.platform + '·' + r.model === name ? tokensOf(r.buckets) : 0), 0)),
-    }))
-    return stackedBarOption(labels, series, t('yTokens'))
-  }, [filtered, labels])
-
-  /** 图 3：工作区 —— 每工作区一条（四桶合计）。 */
+  /** 图 2：工作区 —— 每工作区一条（四桶合计）。 */
   const workspaceOption = useMemo(() => {
     const sums = new Map<string, number>()
     const workspaces = new Set<string>()
@@ -434,7 +423,7 @@ export function CostTab({ run, getSession, tick, reloadTick, metaOf, active }: C
     return stackedBarOption(labels, series, t('yTokens'))
   }, [filtered, labels])
 
-  /** 图 4：缓存比例 —— 命中 / 未命中 两条（tooltip 附带命中缓存率）。 */
+  /** 图 3：缓存比例 —— 命中 / 未命中 两条（tooltip 附带命中缓存率）。 */
   const cacheOption = useMemo(() => {
     const hit = perBucket((r) => r.buckets.cacheRead)
     const miss = perBucket((r) => r.buckets.uncachedInput + r.buckets.cacheWrite)
@@ -444,7 +433,7 @@ export function CostTab({ run, getSession, tick, reloadTick, metaOf, active }: C
     ], t('yTokens'), cacheTooltip)
   }, [filtered, labels])
 
-  /** 图 5：工具占比 —— 工具调用 / 文本回复 / 纯推理 三条。 */
+  /** 图 4：工具占比 —— 工具调用 / 文本回复 / 纯推理 三条。 */
   const purposeOption = useMemo(() => {
     return stackedBarOption(labels, [
       { name: t('purposeTool'), data: perBucket((r) => r.purpose.tool), color: '#1668e3' },
@@ -526,7 +515,6 @@ export function CostTab({ run, getSession, tick, reloadTick, metaOf, active }: C
           // 刷新中（时间切换 / 自动刷新）：旧图表半透明提示「正在更新」，避免误以为未生效
           <div className={'dshb-charts' + (loading ? ' dshb-charts-loading' : '')}>
             <ChartCard title={t('chartCost')} option={costOption} active={active} />
-            <ChartCard title={t('chartTokens')} option={tokensOption} active={active} />
             <ChartCard title={t('chartWorkspace')} option={workspaceOption} active={active} />
             <ChartCard title={t('chartCache')} option={cacheOption} active={active} />
             <ChartCard title={t('chartPurpose')} option={purposeOption} active={active} />

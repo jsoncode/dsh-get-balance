@@ -1,22 +1,29 @@
 /**
  * dsh-get-balance —— 费用 tab：ECharts 渲染层。
  *
- * - 按需注册：BarChart + Grid/Tooltip/Legend 组件 + CanvasRenderer（不引入完整包）；
+ * - 按需注册：BarChart + LineChart + Grid/Tooltip/Legend 组件 + CanvasRenderer（不引入完整包）；
  * - ChartCard：tab 激活才 init，ResizeObserver 跟随容器宽度，卸载 dispose；
- * - stackedBarOption：五张图的公共骨架（堆叠柱、时间桶 x 轴、滚动图例），
- *   tooltip 默认按 token 压缩格式，费用图传入自定义 formatter。
+ * - stackedBarOption：其余图的公共骨架（堆叠柱、时间桶 x 轴、滚动图例），
+ *   tooltip 默认按 token 压缩格式；
+ * - costTokensComboOption：费用图专用组合图 —— 左轴金额（堆叠柱）+ 右轴 Token 量（折线），
+ *   柱与线共用同一模型配色（线名自动加 Token 后缀以区分）。
+ * - tooltip 通用防裁剪（纯 echarts API）：confine 把气泡钳制在图表区域内 ——
+ *   靠近边缘时自动翻转/收拢，不再溢出图区、不被弹框边缘截断；
+ *   extraCssText 限高 + 内部滚动兜底，模型很多时气泡也不会超出图表高度。
+ * - 图例：plain 模式（不设 type:'scroll'）自动换行铺满宽度，不再滚动翻页；
+ *   grid.bottom 预留多行图例空间。
  * - 深浅色：轴/分割线/文字颜色读 CSS 变量，柱色用固定调色板。
  */
 
 import { useEffect, useRef } from 'react'
 import * as echarts from 'echarts/core'
-import { BarChart } from 'echarts/charts'
+import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsCoreOption } from 'echarts/core'
 import { currencySymbol, fmtAmount, fmtCompact, fmtTokens, getLang, t } from '../i18n.ts'
 
-echarts.use([BarChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
+echarts.use([BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
 /** 固定调色板（模型 / 工作区堆叠按索引取色；缓存 / 用途用固定色）。 */
 export const PALETTE = [
@@ -39,6 +46,12 @@ export interface ChartSeriesDef {
   color?: string
 }
 
+/** tooltip 防裁剪（echarts API）：钳制在图表区域内 + 限高内部滚动兜底。 */
+const TOOLTIP_CONFINE = {
+  confine: true,
+  extraCssText: 'max-height:200px;overflow-y:auto;',
+}
+
 /** 堆叠柱状图公共 option 骨架。 */
 export function stackedBarOption(
   labels: string[],
@@ -58,17 +71,19 @@ export function stackedBarOption(
       borderColor: cssVar('--dsw-alias-border-l2', '#ddd'),
       textStyle: { color: labelPrimary, fontSize: 12 },
       formatter: tooltip ?? defaultTokenTooltip,
+      ...TOOLTIP_CONFINE,
     },
     legend: {
-      type: 'scroll',
+      // plain 模式（缺省）：图例按宽度自动换行，不再滚动翻页。
       bottom: 0,
       icon: 'roundRect',
       itemWidth: 12,
       itemHeight: 8,
+      itemGap: 10,
       textStyle: { color: axisColor, fontSize: 11 },
-      pageTextStyle: { color: axisColor },
     },
-    grid: { left: 8, right: 14, top: 10, bottom: 38, containLabel: true },
+    // bottom 预留多行图例空间（图例锚在 bottom:0，行数多时向上生长）。
+    grid: { left: 8, right: 14, top: 10, bottom: 64, containLabel: true },
     xAxis: {
       type: 'category',
       data: labels,
@@ -110,15 +125,131 @@ function defaultTokenTooltip(params: unknown[]): string {
   return html
 }
 
-/** 费用图 tooltip：仅展示已计费金额（两位小数 + 币种符号，CNY → ¥）。 */
-export function costTooltip(params: unknown[], currency: string): string {
-  const rows = params as Array<{ marker?: string; seriesName?: string; value?: unknown; axisValue?: unknown }>
+/** 组合图（费用 + Token）的一个模型系列：柱（金额）与线（token）共用模型名与配色。 */
+export interface ComboSeriesDef {
+  /** 模型展示名（平台·模型）。 */
+  name: string
+  /** 每桶金额（未计费为 0；全 0 的模型不出柱，只出线）。 */
+  amounts: number[]
+  /** 每桶 token 四桶合计。 */
+  tokens: number[]
+  /** 缺省按索引取 PALETTE 色。 */
+  color?: string
+}
+
+/**
+ * 费用 + Token 组合图：左轴金额（各模型堆叠柱），右轴 Token 量（各模型折线）。
+ * 柱仅含已计费模型；线含全部模型（未计费模型也有 Token 用量可看）。
+ * 柱与线按统一模型清单取同一 PALETTE 色；线名加 Token 后缀，避免与柱同名混淆。
+ */
+export function costTokensComboOption(
+  labels: string[],
+  series: ComboSeriesDef[],
+  yLeftName: string,
+  yRightName: string,
+  currency: string,
+): EChartsCoreOption {
+  const axisColor = cssVar('--dsw-alias-label-secondary', '#888')
+  const gridColor = cssVar('--dsw-alias-border-l1', '#eee')
+  const labelPrimary = cssVar('--dsw-alias-label-primary', '#222')
+  const tooltipBg = cssVar('--dsw-alias-bg-layer-2', '#fff')
+  const colorOf = (s: ComboSeriesDef, i: number): string => s.color ?? (PALETTE[i % PALETTE.length] as string)
+  const tokenSuffix = t('tokenSuffix')
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: tooltipBg,
+      borderColor: cssVar('--dsw-alias-border-l2', '#ddd'),
+      textStyle: { color: labelPrimary, fontSize: 12 },
+      formatter: (params: unknown[]) => comboTooltip(params, currency),
+      ...TOOLTIP_CONFINE,
+    },
+    legend: {
+      // plain 模式（缺省）：图例按宽度自动换行，不再滚动翻页。
+      // 不强制 icon：柱系列默认圆角矩形、线系列默认线形，图例上即可区分两类。
+      bottom: 0,
+      itemWidth: 14,
+      itemHeight: 8,
+      itemGap: 10,
+      textStyle: { color: axisColor, fontSize: 11 },
+    },
+    // bottom 预留多行图例空间（柱 + 线系列多，图例行数可能较多）。
+    grid: { left: 8, right: 8, top: 10, bottom: 64, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLine: { lineStyle: { color: cssVar('--dsw-alias-border-l2', '#ccc') } },
+      axisTick: { show: false },
+      axisLabel: { color: axisColor, fontSize: 10 },
+    },
+    yAxis: [
+      {
+        // 左轴：金额（元）。
+        type: 'value',
+        name: yLeftName,
+        nameTextStyle: { color: cssVar('--dsw-alias-label-tertiary', '#999'), fontSize: 10, padding: [0, 0, 0, -4] },
+        splitLine: { lineStyle: { color: gridColor, type: 'dashed', opacity: 0.15 } },
+        axisLabel: { color: cssVar('--dsw-alias-label-tertiary', '#999'), fontSize: 10, formatter: (v: number) => fmtCompact(v) },
+      },
+      {
+        // 右轴：Token 数量（不带网格线，避免与左轴刻度线打架）。
+        type: 'value',
+        name: yRightName,
+        position: 'right',
+        nameTextStyle: { color: cssVar('--dsw-alias-label-tertiary', '#999'), fontSize: 10, padding: [0, -4, 0, 0] },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: false },
+        axisLabel: { color: cssVar('--dsw-alias-label-tertiary', '#999'), fontSize: 10, formatter: (v: number) => fmtCompact(v) },
+      },
+    ],
+    series: [
+      // 柱：各模型费用堆叠（仅已计费模型；统一按传入顺序取色）。
+      ...series
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) => s.amounts.some((v) => v > 0))
+        .map(({ s, i }) => ({
+          name: s.name,
+          type: 'bar',
+          stack: 'cost',
+          yAxisIndex: 0,
+          data: s.amounts,
+          itemStyle: { color: colorOf(s, i) },
+          emphasis: { focus: 'series' },
+          barMaxWidth: 28,
+        })),
+      // 线：各模型 Token 用量（含未计费模型；与对应柱同色，形状区分）。
+      ...series.map((s, i) => ({
+        name: s.name + tokenSuffix,
+        type: 'line',
+        yAxisIndex: 1,
+        data: s.tokens,
+        itemStyle: { color: colorOf(s, i) },
+        lineStyle: { width: 1.5, color: colorOf(s, i) },
+        smooth: false,
+        symbol: 'circle',
+        symbolSize: 5,
+        showSymbol: false,
+        emphasis: { focus: 'series' },
+      })),
+    ],
+  }
+}
+
+/** 组合图 tooltip：柱行显示金额（≈ + 币种），线行显示 token 压缩格式；跳过零值。 */
+function comboTooltip(params: unknown[], currency: string): string {
+  const rows = params as Array<{ marker?: string; seriesName?: string; seriesType?: string; value?: unknown; axisValue?: unknown }>
   const axis = rows[0]?.axisValue
   let html = '<div style="font-weight:600;margin-bottom:4px">' + String(axis ?? '') + '</div>'
   for (const p of rows) {
     const v = typeof p.value === 'number' ? p.value : 0
     if (v <= 0) continue
-    html += '<div>' + (p.marker ?? '') + (p.seriesName ?? '') + ': <b>≈' + currencySymbol(currency) + fmtAmount(v) + '</b></div>'
+    if (p.seriesType === 'line') {
+      html += '<div>' + (p.marker ?? '') + (p.seriesName ?? '') + ': <b>' + fmtTokens(v) + '</b></div>'
+    } else {
+      html += '<div>' + (p.marker ?? '') + (p.seriesName ?? '') + ': <b>≈' + currencySymbol(currency) + fmtAmount(v) + '</b></div>'
+    }
   }
   return html
 }

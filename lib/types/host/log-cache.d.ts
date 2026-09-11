@@ -14,6 +14,18 @@ export interface FileRef {
     mtimeMs: number;
     size: number;
 }
+/**
+ * 会话目录内的日志文件候选（按优先级排列）：
+ * 1. `session.v3.jsonl(.zstd)` —— DSH 会话格式 v3（现行格式）。DSH 把旧会话
+ *    整体迁移到 v3 后，旧文件冻结不再追加、新帧全部写入 v3；v3 是**完整**
+ *    日志（迁移时包含全部历史帧），因此命中 v3 即停，不再回退旧文件，
+ *    避免同一会话在 v3 + 旧文件里被解析两份（token/费用双倍计数）。
+ * 2. `session.jsonl(.zstd)` —— 旧格式兜底（未迁移 / 已结束的历史会话）。
+ */
+export declare const SESSION_LOG_CANDIDATES: Array<{
+    name: string;
+    zstd: boolean;
+}>;
 /** 一个 step/end 样本（仅计数）。 */
 export interface StepSample {
     time: number;

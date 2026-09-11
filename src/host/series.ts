@@ -19,7 +19,7 @@ import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { costOf, isOfficialProvider, isPeakTime, periodPricesOf } from './cost.ts'
-import { getParsedFile, type FileRef, type FileSample } from './log-cache.ts'
+import { SESSION_LOG_CANDIDATES, getParsedFile, type FileRef, type FileSample } from './log-cache.ts'
 import { loadSeriesStore, touchSeriesStore, type SeriesStoreFile, type StoredDay } from './series-store.ts'
 import type { CostSeriesResult, PriceConfig, PriceTier, PurposeTokens, SeriesPoint, SeriesRecord, UsageBuckets } from './types.ts'
 
@@ -273,7 +273,7 @@ function groupOf(
   return g
 }
 
-/** 遍历项目/会话目录收集日志文件（zstd 优先，明文兜底）。 */
+/** 遍历项目/会话目录收集日志文件（v3 现行格式优先，旧格式兜底，命中即停）。 */
 function collectFiles(root: string | undefined): FileRef[] {
   if (root === undefined) return []
   const out: FileRef[] = []
@@ -293,10 +293,9 @@ function collectFiles(root: string | undefined): FileRef[] {
     }
     for (const name of names) {
       const dir = join(projectDir, name)
-      const candidates: Array<{ path: string; isZstd: boolean }> = [
-        { path: join(dir, 'session.jsonl.zstd'), isZstd: true },
-        { path: join(dir, 'session.jsonl'), isZstd: false },
-      ]
+      // v3 优先（完整迁移后的现行日志），命中即停避免同会话 v3 + 旧文件双份计数；
+      // 未迁移的历史会话回退旧格式文件。
+      const candidates = SESSION_LOG_CANDIDATES.map((c) => ({ path: join(dir, c.name), isZstd: c.zstd }))
       for (const candidate of candidates) {
         let stat
         try {

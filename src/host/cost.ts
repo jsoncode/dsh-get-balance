@@ -8,11 +8,12 @@
  *    不重复计费；'request/context' 追踪当前模型与服务商用于匹配价格档。
  * 2. 磁盘会话兜底 + 子代理并入：已从内存注销的会话（如已结束的子代理，
  *    dispose 后 ctx.sessions 不再保留）按 id 从 dshHomePath('sessions')/
- *    <project>/<sessionId>/session.jsonl(.zstd) 读回；「本会话」再按
- *    header.parentSession 血缘（同项目目录）把子孙子代理会话的用量一并折叠
- *    进当前会话 —— 任务开子代理产生的流量归到主任务同一会话头上。
- * 3. 今日磁盘聚合：扫描 dshHomePath('sessions')/<project>/<sessionId>/
- *    session.jsonl(.zstd)，mtime >= 今日零点粗筛 → 解析复用 log-cache 的
+ *    <project>/<sessionId>/ 下读回（候选文件名与优先级见 log-cache 的
+ *    SESSION_LOG_CANDIDATES：v3 现行格式优先，旧格式兜底，命中即停）；
+ *    「本会话」再按 header.parentSession 血缘（同项目目录）把子孙子代理会话
+ *    的用量一并折叠进当前会话 —— 任务开子代理产生的流量归到主任务同一会话头上。
+ * 3. 今日磁盘聚合：扫描 dshHomePath('sessions')/<project>/<sessionId>/ 下的
+ *    会话日志（同上 v3 优先），mtime >= 今日零点粗筛 → 解析复用 log-cache 的
  *    内存样本缓存（同文件 mtime/size 未变不重复解压）→ 只取 time >= 今日
  *    零点、已由 parseLogFile 固化了 model/provider 的样本 → 按服务商分组、
  *    组内按事件自身时段拆高峰/空闲，官方 key 另按模型进 billable 计费。
@@ -35,7 +36,7 @@ import { closeSync, openSync, readSync, readdirSync, readFileSync, statSync } fr
 import { join } from 'node:path'
 import { zstdDecompressSync } from 'node:zlib'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
-import { decodeLog, getParsedFile, type FileSample } from './log-cache.ts'
+import { SESSION_LOG_CANDIDATES, decodeLog, getParsedFile, type FileSample } from './log-cache.ts'
 import type { CostEntry, CostResult, KeyCostEntry, PriceConfig, PricePeriodPrices, PriceTier, TimeWindow, UsageBuckets } from './types.ts'
 
 /** 默认时区偏移：北京时间 UTC+8（分钟）。 */
@@ -694,10 +695,9 @@ function projectSessionIndex(projectDirPath: string): Map<string, SessionIndexEn
   const byId = new Map<string, SessionIndexEntry>()
   for (const name of names) {
     const dir = join(projectDirPath, name)
-    const candidates: Array<{ path: string; zstd: boolean }> = [
-      { path: join(dir, 'session.jsonl.zstd'), zstd: true },
-      { path: join(dir, 'session.jsonl'), zstd: false },
-    ]
+    // v3 优先（完整迁移后的现行日志），命中即停 —— 旧文件冻结不再追加，
+    // 再读会与 v3 重复计数。header 读取见 readHeaderLine（首帧即 header）。
+    const candidates = SESSION_LOG_CANDIDATES.map((c) => ({ path: join(dir, c.name), zstd: c.zstd }))
     for (const candidate of candidates) {
       const headerLine = readHeaderLine(candidate.path, candidate.zstd)
       if (headerLine === undefined) continue
@@ -955,10 +955,9 @@ async function scanToday(
     }
     for (const sessionId of sessionIds) {
       const dir = join(projectDirPath, sessionId)
-      const candidates: Array<{ path: string; zstd: boolean }> = [
-        { path: join(dir, 'session.jsonl.zstd'), zstd: true },
-        { path: join(dir, 'session.jsonl'), zstd: false },
-      ]
+      // v3 优先（完整迁移后的现行日志，含全部历史帧），命中即停避免双份计数；
+      // 未迁移的历史会话回退旧文件。mtime >= 今日零点粗筛当天活跃会话。
+      const candidates = SESSION_LOG_CANDIDATES.map((c) => ({ path: join(dir, c.name), zstd: c.zstd }))
       for (const candidate of candidates) {
         let stat
         try {
